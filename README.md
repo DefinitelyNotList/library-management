@@ -3,14 +3,14 @@
 
 ## Overview
 A full-stack Library Management System developed during my Java Full Stack internship at **Infosys Springboard**.  
-It streamlines management of books, user accounts, memberships, borrowing/returning, fine tracking, notifications, and AI-based queries.
+It streamlines management of books, user accounts, memberships, borrowing/returning, fine tracking, notifications.
 
 ---
 
 ## Tech Stack
 - **Backend:** Java, Spring Boot, SQL Server, REST APIs, JWT Authentication  
 - **Frontend:** React.js, Vite, HTML, CSS, JavaScript  
-- **Tools & Integrations:** Postman, Git/GitHub, IntelliJ IDEA, VS Code, OpenAI API (AI Chatbot)
+- **Tools & Integrations:** Postman, Git/GitHub, IntelliJ IDEA, VS Code
 
 ---
 
@@ -23,7 +23,6 @@ It streamlines management of books, user accounts, memberships, borrowing/return
 - Book issue and return logic  
 - Overdue fine calculation and tracking  
 - Email notifications for overdue books  
-- AI Chatbot for user queries  
 
 </details>
 
@@ -57,7 +56,7 @@ before starting the backend when the SQL Server login is not `sa` with a blank p
 The supplied SQL schema is managed outside Hibernate (`ddl-auto=none`).
 
 Run the backend:
-mvn spring-boot:run
+.\mvnw.cmd spring-boot:run
 or via IntelliJ IDEA
 
 Frontend Setup
