@@ -2,6 +2,9 @@ package com.librario.service;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -9,6 +12,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class EmailService {
+
+    private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
     private final JavaMailSender mailSender;
 
@@ -19,11 +24,15 @@ public class EmailService {
 
     // Plain text email
     public void sendEmail(String to, String subject, String body) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(to);
-        message.setSubject(subject);
-        message.setText(body);
-        mailSender.send(message);
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(to);
+            message.setSubject(subject);
+            message.setText(body);
+            mailSender.send(message);
+        } catch (MailException e) {
+            log.warn("Failed to send email to {}: {}", to, e.getMessage());
+        }
     }
 
     // email
@@ -37,8 +46,8 @@ public class EmailService {
             helper.setText(htmlContent, true); // true = HTML support
 
             mailSender.send(mimeMessage);
-        } catch (MessagingException e) {
-            throw new RuntimeException("Failed to send HTML email: " + e.getMessage(), e);
+        } catch (MessagingException | MailException e) {
+            log.warn("Failed to send HTML email to {}: {}", to, e.getMessage());
         }
     }
 

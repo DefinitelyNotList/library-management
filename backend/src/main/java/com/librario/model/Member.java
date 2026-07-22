@@ -17,7 +17,7 @@ public class Member {
     private Long id;
 
     @OneToOne
-    @JoinColumn(name = "user_id", referencedColumnName = "id")
+    @JoinColumn(name = "user_id", referencedColumnName = "UserId")
     private User user;
 
     @ManyToOne

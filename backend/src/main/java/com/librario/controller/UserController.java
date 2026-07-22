@@ -102,11 +102,13 @@ public class UserController {
 
     // New count endpoint
     @GetMapping("/librarians/count")
+    @PreAuthorize("hasRole('ADMIN')")
     public long countLibrarians() {
         return userRepository.countByRole_RoleName("LIBRARIAN");
     }
 
     @GetMapping("/members/count")
+    @PreAuthorize("hasRole('ADMIN')")
     public long countMembers() {
         return userRepository.countByRole_RoleName("MEMBER");
     }

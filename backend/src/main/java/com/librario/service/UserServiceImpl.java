@@ -54,10 +54,12 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new RuntimeException(roleName + " role not found"));
 
         User newUser = User.builder()
+                .username(usernameFromEmail(userDTO.getEmail()))
                 .name(userDTO.getName())
                 .email(userDTO.getEmail())
                 .password(passwordEncoder.encode(userDTO.getPassword()))
                 .role(userRole)
+                .libraryRole("MEMBER".equals(roleName) ? "READER" : roleName)
                 .status(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -112,10 +114,12 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new RuntimeException("LIBRARIAN role not found"));
 
         User newUser = User.builder()
+                .username(usernameFromEmail(userDTO.getEmail()))
                 .name(userDTO.getName())
                 .email(userDTO.getEmail())
                 .password(passwordEncoder.encode(userDTO.getPassword()))
                 .role(librarianRole)
+                .libraryRole("LIBRARIAN")
                 .status(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -235,6 +239,11 @@ public class UserServiceImpl implements UserService {
 
         Member member = memberRepository.findByUserId(user.getId());
         return member != null ? member.getId() : null;
+    }
+
+    private String usernameFromEmail(String email) {
+        String localPart = email == null ? "user" : email.substring(0, Math.max(1, email.indexOf('@')));
+        return localPart.length() > 50 ? localPart.substring(0, 50) : localPart;
     }
 
 
