@@ -57,7 +57,7 @@ before starting the backend when the SQL Server login is not `sa` with a blank p
 The supplied SQL schema is managed outside Hibernate (`ddl-auto=none`).
 
 Run the backend:
-mvn spring-boot:run
+.\mvnw.cmd spring-boot:run
 or via IntelliJ IDEA
 
 Frontend Setup
