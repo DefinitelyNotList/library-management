@@ -46,13 +46,6 @@ It streamlines management of books, user accounts, memberships, borrowing/return
 
 Getting Started
 
-
-Backend Setup
-Rename application-example.properties → application.properties
-Run `LibraryManagementDB.sql` in SQL Server Management Studio. The backend connects to
-`LibraryManagementDB` at `localhost:1433` by default. Set `DB_USERNAME` and `DB_PASSWORD`
-before starting the backend when the SQL Server login is not `sa` with a blank password.
-
 The supplied SQL schema is managed outside Hibernate (`ddl-auto=none`).
 
 Run the backend:
@@ -63,10 +56,6 @@ Frontend Setup
 cd frontend
 npm install
 npm run dev
-
-Notes : 
-Do not commit sensitive application.properties
-Use application-example.properties as a safe template
 
 ## Database-backed APIs
 
