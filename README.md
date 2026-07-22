@@ -1,8 +1,8 @@
-# Librario: Simplified Library Management System
+# Library Management System
 ---
 
 ## Overview
-**Librario** is a full-stack Library Management System developed during my Java Full Stack internship at **Infosys Springboard**.  
+A full-stack Library Management System developed during my Java Full Stack internship at **Infosys Springboard**.  
 It streamlines management of books, user accounts, memberships, borrowing/returning, fine tracking, notifications, and AI-based queries.
 
 ---
