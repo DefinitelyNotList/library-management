@@ -9,9 +9,9 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
-    @ExceptionHandler({IllegalArgumentException.class, EmptyResultDataAccessException.class})
+    @ExceptionHandler({IllegalArgumentException.class, EmptyResultDataAccessException.class, RuntimeException.class})
     public ResponseEntity<Map<String, String>> badRequest(Exception exception) {
-        return ResponseEntity.badRequest().body(Map.of("message", exception.getMessage()));
+        return ResponseEntity.badRequest().body(Map.of("message", exception.getMessage() != null ? exception.getMessage() : "Error occurred"));
     }
 
     @ExceptionHandler(IllegalStateException.class)

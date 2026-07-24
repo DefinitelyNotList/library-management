@@ -47,7 +47,8 @@ function Login() {
       else if (role === "MEMBER") navigate("/member-dashboard");
       else setMessage("Unknown role.");
     } catch (err) {
-      setMessage("Login failed: " + (err.response?.data || "Server error"));
+      const errMsg = err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response?.data : null) || "Server error";
+      setMessage("Login failed: " + errMsg);
     }
   };
 

@@ -29,12 +29,24 @@ public class User {
     @Column(name = "PasswordHash")
     private String password;
 
-    @ManyToOne
-    @JoinColumn(name = "RoleId", referencedColumnName = "RoleId")
-    private Role role;
+    @Column(name = "PhoneNumber")
+    private String phoneNumber;
 
     @Column(name = "Role")
     private String libraryRole;
+
+    @Transient
+    private Role role;
+
+    public Role getRole() {
+        if (role != null) return role;
+        if (libraryRole != null) {
+            String r = libraryRole.toUpperCase();
+            if ("READER".equals(r)) r = "MEMBER";
+            return new Role(null, r);
+        }
+        return new Role(null, "MEMBER");
+    }
 
     @Column(name = "IsActive")
     private Boolean status;
@@ -42,6 +54,7 @@ public class User {
     @Column(name = "CreatedAt")
     private LocalDateTime createdAt;
 
-    @Column(name = "UpdatedAt")
+    @Transient
     private LocalDateTime updatedAt;
 }
+

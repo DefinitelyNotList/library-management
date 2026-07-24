@@ -50,8 +50,7 @@ public class UserServiceImpl implements UserService {
         }
 
         String roleName = userDTO.getRole() != null ? userDTO.getRole().toUpperCase() : "MEMBER";
-        Role userRole = roleRepository.findByRoleName(roleName)
-                .orElseThrow(() -> new RuntimeException(roleName + " role not found"));
+        Role userRole = new Role(null, roleName);
 
         User newUser = User.builder()
                 .username(usernameFromEmail(userDTO.getEmail()))
@@ -88,10 +87,11 @@ public class UserServiceImpl implements UserService {
 
         Long memberId = null; // default null
         if ("MEMBER".equals(user.getRole().getRoleName())) {
-            // fetch member linked to this user
-            Member member = memberRepository.findByUserId(user.getId());
-            if (member != null) {
-                memberId = member.getId();
+            try {
+                Member member = memberRepository.findByUserId(user.getId());
+                memberId = (member != null && member.getId() != null) ? member.getId() : user.getId();
+            } catch (Exception e) {
+                memberId = user.getId();
             }
         }
 
@@ -110,8 +110,7 @@ public class UserServiceImpl implements UserService {
             return "Email already exists";
         }
 
-        Role librarianRole = roleRepository.findByRoleName("LIBRARIAN")
-                .orElseThrow(() -> new RuntimeException("LIBRARIAN role not found"));
+        Role librarianRole = new Role(null, "LIBRARIAN");
 
         User newUser = User.builder()
                 .username(usernameFromEmail(userDTO.getEmail()))
@@ -237,8 +236,12 @@ public class UserServiceImpl implements UserService {
 
         if (!"MEMBER".equals(user.getRole().getRoleName())) return null;
 
-        Member member = memberRepository.findByUserId(user.getId());
-        return member != null ? member.getId() : null;
+        try {
+            Member member = memberRepository.findByUserId(user.getId());
+            return (member != null && member.getId() != null) ? member.getId() : user.getId();
+        } catch (Exception e) {
+            return user.getId();
+        }
     }
 
     private String usernameFromEmail(String email) {

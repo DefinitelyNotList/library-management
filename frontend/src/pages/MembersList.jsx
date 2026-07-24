@@ -18,7 +18,10 @@ export default function MembersList() {
         : Array.isArray(res.data?.content)
         ? res.data.content
         : [];
-      setRows(list);
+      const membersOnly = list.filter(
+        (u) => u.role === "MEMBER" || u.role === "READER"
+      );
+      setRows(membersOnly);
     } catch (e) {
       console.error(e);
       setErr("Failed to load members.");

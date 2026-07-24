@@ -118,8 +118,7 @@ public class MemberServiceImpl implements MemberService {
     @Override
     public Member addMember(UserDTO userDTO, Long planId) {
         // 1 Fetch the MEMBER role from DB
-        Role memberRole = roleRepository.findByRoleName("MEMBER")
-                .orElseThrow(() -> new RuntimeException("Role not found"));
+        Role memberRole = new Role(null, "MEMBER");
 
         //  Create new user
         User user = new User();

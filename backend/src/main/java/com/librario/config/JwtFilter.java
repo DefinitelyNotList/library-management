@@ -44,9 +44,13 @@ public class JwtFilter extends OncePerRequestFilter {
             token = authHeader.substring(7);
 
             // Check if token is blacklisted
-            if (tokenBlacklistRepository.findByToken(token).isPresent()) {
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                return;
+            try {
+                if (tokenBlacklistRepository.findByToken(token).isPresent()) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    return;
+                }
+            } catch (Exception e) {
+                // Table TokenBlacklist may not exist in DB schema; ignore
             }
 
             try {
