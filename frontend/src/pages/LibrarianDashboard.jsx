@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axiosInstance from "../utils/axiosInstance";
 
 function LibrarianBookManagement() {
   const [books, setBooks] = useState([]);
@@ -19,7 +20,6 @@ function LibrarianBookManagement() {
     totalCopies: "",
     availableCopies: "",
     status: "AVAILABLE",
-    coverImage: "",
   });
   const [returnData, setReturnData] = useState({
     bookCondition: "GOOD",
@@ -27,7 +27,27 @@ function LibrarianBookManagement() {
   });
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [selectedTxn, setSelectedTxn] = useState(null);
-  const [activeTab, setActiveTab] = useState("books"); // "books" or "requests"
+  const [activeTab, setActiveTab] = useState("books"); // "books", "requests", "history", "overdue"
+
+  // Overdue & History states
+  const [overdueList, setOverdueList] = useState([]);
+  const [historyReaderId, setHistoryReaderId] = useState("");
+  const [borrowHistory, setBorrowHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [overdueLoading, setOverdueLoading] = useState(false);
+  // Return book modal via DB API
+  const [showReturnDbModal, setShowReturnDbModal] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState(null);
+  const [returnCondition, setReturnCondition] = useState("Good");
+  const [returning, setReturning] = useState(false);
+
+  // Borrow Ticket Modal States
+  const [showBorrowModal, setShowBorrowModal] = useState(false);
+  const [membersList, setMembersList] = useState([]);
+  const [borrowMemberId, setBorrowMemberId] = useState("");
+  const [borrowBookId, setBorrowBookId] = useState("");
+  const [selectedGenre, setSelectedGenre] = useState("ALL");
+  const [selectedStatus, setSelectedStatus] = useState("ALL");
 
   const navigate = useNavigate();
 
@@ -42,7 +62,80 @@ function LibrarianBookManagement() {
   useEffect(() => {
     fetchBooks();
     fetchRequests();
+    fetchMembersList();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "overdue") fetchOverdue();
+  }, [activeTab]);
+
+  const fetchOverdue = async () => {
+    setOverdueLoading(true);
+    try {
+      const res = await axiosInstance.get("/library/borrows/overdue");
+      setOverdueList(Array.isArray(res.data) ? res.data : []);
+    } catch (e) { console.error("Error fetching overdue:", e); }
+    finally { setOverdueLoading(false); }
+  };
+
+  const fetchBorrowHistory = async () => {
+    if (!historyReaderId) return;
+    setHistoryLoading(true);
+    try {
+      const res = await axiosInstance.get(`/library/borrows/history?readerId=${historyReaderId}`);
+      setBorrowHistory(Array.isArray(res.data) ? res.data : []);
+    } catch (e) {
+      alert("❌ Không tìm thấy lịch sử mượn sách. Kiểm tra Reader ID.");
+      setBorrowHistory([]);
+    } finally { setHistoryLoading(false); }
+  };
+
+  const openReturnDbModal = (detail) => {
+    setSelectedDetail(detail);
+    setReturnCondition("Good");
+    setShowReturnDbModal(true);
+  };
+
+  const handleReturnDb = async () => {
+    if (!selectedDetail) return;
+    const detailId = selectedDetail.BorrowDetailId || selectedDetail.borrowDetailId;
+    setReturning(true);
+    try {
+      await axiosInstance.post(`/library/borrows/${detailId}/return`, { bookCondition: returnCondition });
+      alert("✅ Trả sách thành công!");
+      setShowReturnDbModal(false);
+      setSelectedDetail(null);
+      fetchBorrowHistory();
+      fetchOverdue();
+      fetchBooks();
+    } catch (e) {
+      alert("❌ " + (e.response?.data?.message || "Lỗi trả sách."));
+    } finally { setReturning(false); }
+  };
+
+  const handleUpdateOverdue = async () => {
+    try {
+      await axiosInstance.put("/library/borrows/update-overdue");
+      alert("✅ Đã cập nhật trạng thái quá hạn!");
+      fetchOverdue();
+    } catch (e) { alert("❌ Lỗi cập nhật."); }
+  };
+
+  const fetchMembersList = async () => {
+    try {
+      const res = await axios.get("http://localhost:8080/api/users", {
+        headers: getAuthHeader(),
+      });
+      const users = Array.isArray(res.data) ? res.data : [];
+      // Members or readers
+      const membersOnly = users.filter(
+        (u) => u.role === "MEMBER" || u.role === "READER"
+      );
+      setMembersList(membersOnly);
+    } catch (err) {
+      console.error("Error fetching members list:", err);
+    }
+  };
 
   const fetchBooks = async () => {
     try {
@@ -103,14 +196,25 @@ function LibrarianBookManagement() {
       totalCopies: "",
       availableCopies: "",
       status: "AVAILABLE",
-      coverImage: "",
     });
   };
+
+  // Chuan hoa du lieu form truoc khi gui len backend:
+  // cac o so de trong (year/totalCopies/availableCopies) phai gui null,
+  // khong duoc gui chuoi rong "" vi backend (Integer) se parse loi 400.
+  const buildPayload = () => ({
+    ...bookForm,
+    year: bookForm.year === "" ? null : Number(bookForm.year),
+    totalCopies:
+      bookForm.totalCopies === "" ? null : Number(bookForm.totalCopies),
+    availableCopies:
+      bookForm.availableCopies === "" ? null : Number(bookForm.availableCopies),
+  });
 
   // Add or Update Book
   const handleAddBook = async () => {
     try {
-      await axios.post("http://localhost:8080/api/books", bookForm, {
+      await axios.post("http://localhost:8080/api/books", buildPayload(), {
         headers: getAuthHeader(),
       });
       alert("✅ Book added successfully!");
@@ -127,7 +231,7 @@ function LibrarianBookManagement() {
     try {
       await axios.put(
         `http://localhost:8080/api/books/${editingBook.id}`,
-        bookForm,
+        buildPayload(),
         { headers: getAuthHeader() }
       );
       alert("✅ Book updated successfully!");
@@ -156,23 +260,38 @@ function LibrarianBookManagement() {
   };
 
   // ISSUE BOOK
-  const openIssueModal = (book) => {
-    const memberId = prompt("Enter Member ID to issue the book:");
-    if (!memberId) return;
-    axios
-      .post(
-        `http://localhost:8080/api/transactions/issue/${memberId}/${book.id}`,
+  const openIssueModal = (book = null) => {
+    if (book) {
+      setBorrowBookId(book.id);
+    } else {
+      setBorrowBookId("");
+    }
+    setBorrowMemberId("");
+    fetchMembersList();
+    setShowBorrowModal(true);
+  };
+
+  const handleCreateBorrowTicket = async () => {
+    if (!borrowMemberId || !borrowBookId) {
+      alert("⚠️ Please select both a Member and a Book.");
+      return;
+    }
+
+    try {
+      await axios.post(
+        `http://localhost:8080/api/transactions/issue/${borrowMemberId}/${borrowBookId}`,
         {},
         { headers: getAuthHeader() }
-      )
-      .then(() => {
-        alert("✅ Book issued successfully!");
-        fetchBooks();
-      })
-      .catch((err) => {
-        console.error(err);
-        alert("❌ Failed to issue book");
-      });
+      );
+      alert("✅ Borrow ticket created successfully!");
+      setShowBorrowModal(false);
+      setBorrowMemberId("");
+      setBorrowBookId("");
+      fetchBooks();
+    } catch (err) {
+      console.error(err);
+      alert("❌ Failed to create borrow ticket: " + (err.response?.data?.message || err.message));
+    }
   };
 
   // RETURN BOOK
@@ -256,16 +375,27 @@ function LibrarianBookManagement() {
     }
   };
 
-  // Search
+  // Search & Filter
+  const genresList = ["ALL", ...new Set(books.map((b) => b.genre).filter(Boolean))];
+
   useEffect(() => {
+    const q = searchTerm.toLowerCase().trim();
     setFilteredBooks(
-      books.filter(
-        (book) =>
-          book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          book.author.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      books.filter((book) => {
+        const matchesQuery =
+          !q ||
+          (book.title && book.title.toLowerCase().includes(q)) ||
+          (book.author && book.author.toLowerCase().includes(q)) ||
+          (book.isbn && book.isbn.toLowerCase().includes(q));
+
+        const matchesGenre = selectedGenre === "ALL" || book.genre === selectedGenre;
+        const matchesStatus =
+          selectedStatus === "ALL" || book.status === selectedStatus;
+
+        return matchesQuery && matchesGenre && matchesStatus;
+      })
     );
-  }, [searchTerm, books]);
+  }, [searchTerm, selectedGenre, selectedStatus, books]);
 
   return (
     <div className="min-vh-100 bg-gradient-subtle">
@@ -287,7 +417,7 @@ function LibrarianBookManagement() {
         {/* Navigation Tabs */}
         <div className="row justify-content-center mb-5">
           <div className="col-auto">
-            <div className="nav-pills-modern d-flex gap-2 p-2 bg-white rounded-pill shadow-sm">
+            <div className="nav-pills-modern d-flex flex-wrap gap-2 p-2 bg-white rounded-pill shadow-sm">
               <button
                 className={`btn rounded-pill px-4 py-2 fw-semibold transition-all ${
                   activeTab === "books"
@@ -313,6 +443,31 @@ function LibrarianBookManagement() {
                   </span>
                 )}
               </button>
+              <button
+                className={`btn rounded-pill px-4 py-2 fw-semibold transition-all ${
+                  activeTab === "history"
+                    ? "btn-primary-gradient text-white shadow"
+                    : "btn-ghost text-muted"
+                }`}
+                onClick={() => setActiveTab("history")}
+              >
+                📋 Borrow History
+              </button>
+              <button
+                className={`btn rounded-pill px-4 py-2 fw-semibold transition-all position-relative ${
+                  activeTab === "overdue"
+                    ? "btn-primary-gradient text-white shadow"
+                    : "btn-ghost text-muted"
+                }`}
+                onClick={() => setActiveTab("overdue")}
+              >
+                ⚠️ Overdue
+                {overdueList.length > 0 && (
+                  <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    {overdueList.length}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -326,30 +481,63 @@ function LibrarianBookManagement() {
                 <div className="card border-0 shadow-sm rounded-3 bg-white">
                   <div className="card-body p-4">
                     <div className="row align-items-center g-3">
-                      <div className="col-md-8">
+                      <div className="col-lg-4 col-md-12">
                         <div className="position-relative">
                           <span className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted">
                             🔍
                           </span>
                           <input
                             type="text"
-                            placeholder="Search by title or author..."
+                            placeholder="Search by title, author, ISBN..."
                             className="form-control form-control-lg ps-5 border-0 bg-light rounded-pill"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                           />
                         </div>
                       </div>
-                      <div className="col-md-4 text-end">
+                      <div className="col-lg-2 col-md-6">
+                        <select
+                          className="form-select form-select-lg border-0 bg-light rounded-pill"
+                          value={selectedGenre}
+                          onChange={(e) => setSelectedGenre(e.target.value)}
+                        >
+                          <option value="ALL">🏷️ All Genres</option>
+                          {genresList
+                            .filter((g) => g !== "ALL")
+                            .map((genre) => (
+                              <option key={genre} value={genre}>
+                                {genre}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div className="col-lg-2 col-md-6">
+                        <select
+                          className="form-select form-select-lg border-0 bg-light rounded-pill"
+                          value={selectedStatus}
+                          onChange={(e) => setSelectedStatus(e.target.value)}
+                        >
+                          <option value="ALL">⚙️ All Statuses</option>
+                          <option value="AVAILABLE">Available</option>
+                          <option value="UNAVAILABLE">Unavailable</option>
+                        </select>
+                      </div>
+                      <div className="col-lg-4 col-md-12 text-end d-flex gap-2 justify-content-end">
                         <button
-                          className="btn btn-primary-gradient btn-lg px-4 rounded-pill fw-semibold shadow"
+                          className="btn btn-success btn-lg px-3 rounded-pill fw-semibold shadow"
+                          onClick={() => openIssueModal(null)}
+                        >
+                          📝 Create Borrow Ticket
+                        </button>
+                        <button
+                          className="btn btn-primary-gradient btn-lg px-3 rounded-pill fw-semibold shadow"
                           onClick={() => {
                             resetForm();
                             setEditingBook(null);
                             setShowModal(true);
                           }}
                         >
-                          ➕ Add New Book
+                          ➕ Add Book
                         </button>
                       </div>
                     </div>
@@ -384,13 +572,9 @@ function LibrarianBookManagement() {
                             >
                               {/* Book Cover */}
                               <div className="flex-shrink-0 me-3">
-                                {book.coverImage || book.isbn ? (
+                                {book.isbn ? (
                                   <img
-                                    src={
-                                      book.coverImage
-                                        ? book.coverImage
-                                        : `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`
-                                    }
+                                    src={`https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`}
                                     alt={book.title}
                                     className="rounded"
                                     style={{
@@ -463,13 +647,9 @@ function LibrarianBookManagement() {
                   <div className="card book-card h-100 border-0 shadow-hover rounded-4 overflow-hidden">
                     {/* Book Cover */}
                     <div className="book-cover-container position-relative">
-                      {book.coverImage || book.isbn ? (
+                      {book.isbn ? (
                         <img
-                          src={
-                            book.coverImage
-                              ? book.coverImage
-                              : `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`
-                          }
+                          src={`https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`}
                           alt={book.title}
                           className="card-img-top book-cover"
                         />
@@ -678,6 +858,239 @@ function LibrarianBookManagement() {
           </div>
         )}
 
+        {/* ===================== BORROW HISTORY TAB ===================== */}
+        {activeTab === "history" && (
+          <div className="row">
+            <div className="col-12">
+              <div className="card border-0 shadow-sm rounded-4 mb-4">
+                <div className="card-body p-4">
+                  <h5 className="fw-bold mb-3">📋 Tra Cứu Lịch Sử Mượn Sách</h5>
+                  <div className="d-flex gap-3 align-items-end">
+                    <div className="flex-grow-1">
+                      <label className="form-label text-muted small">Reader ID (UserId)</label>
+                      <input
+                        type="number"
+                        className="form-control rounded-pill"
+                        placeholder="Nhập Reader ID..."
+                        value={historyReaderId}
+                        onChange={e => setHistoryReaderId(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && fetchBorrowHistory()}
+                      />
+                    </div>
+                    <button
+                      className="btn btn-primary rounded-pill px-4 fw-semibold"
+                      onClick={fetchBorrowHistory}
+                      disabled={historyLoading || !historyReaderId}
+                    >
+                      {historyLoading ? "⏳ Đang tìm..." : "🔍 Tìm kiếm"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {borrowHistory.length > 0 && (
+                <div className="card border-0 shadow-sm rounded-4">
+                  <div className="card-body p-0">
+                    <div className="table-responsive">
+                      <table className="table table-hover mb-0">
+                        <thead className="table-light">
+                          <tr>
+                            <th className="py-3 px-4">Phiếu #</th>
+                            <th>Tên sách</th>
+                            <th>Ngày mượn</th>
+                            <th>Hạn trả</th>
+                            <th>Ngày trả</th>
+                            <th>Trạng thái</th>
+                            <th>Tình trạng</th>
+                            <th>Tiền phạt</th>
+                            <th className="text-center">Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {borrowHistory.map((r, i) => {
+                            const status = (r.SlipStatus || r.slipStatus || "").toLowerCase();
+                            const isActive = status === "borrowing" || status === "overdue";
+                            const fine = Number(r.FineAmount || r.fineAmount || 0);
+                            return (
+                              <tr key={i}>
+                                <td className="py-3 px-4 fw-bold">#{r.BorrowSlipId || r.borrowSlipId}</td>
+                                <td className="fw-medium">{r.BookTitle || r.bookTitle || "—"}</td>
+                                <td className="text-muted small">{r.BorrowDate ? new Date(r.BorrowDate).toLocaleDateString("vi-VN") : "—"}</td>
+                                <td className="text-muted small">{r.DueDate ? new Date(r.DueDate).toLocaleDateString("vi-VN") : "—"}</td>
+                                <td className="text-muted small">{r.ReturnDate ? new Date(r.ReturnDate).toLocaleDateString("vi-VN") : "—"}</td>
+                                <td>
+                                  <span className={`badge rounded-pill px-3 ${
+                                    status === "returned" ? "bg-success" :
+                                    status === "overdue" ? "bg-danger" : "bg-warning text-dark"
+                                  }`}>
+                                    {r.SlipStatus || r.slipStatus}
+                                  </span>
+                                </td>
+                                <td>{r.BookCondition || r.bookCondition || "—"}</td>
+                                <td>{fine > 0 ? <span className="text-danger fw-bold">{fine.toLocaleString()}đ</span> : "—"}</td>
+                                <td className="text-center">
+                                  {isActive && (
+                                    <button
+                                      className="btn btn-sm btn-outline-success rounded-pill px-3"
+                                      onClick={() => openReturnDbModal(r)}
+                                    >
+                                      🔄 Trả sách
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {borrowHistory.length === 0 && !historyLoading && historyReaderId && (
+                <div className="text-center text-muted py-4">
+                  <div style={{ fontSize: "3rem" }}>📭</div>
+                  <p>Không tìm thấy lịch sử mượn sách cho Reader ID: {historyReaderId}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ===================== OVERDUE TAB ===================== */}
+        {activeTab === "overdue" && (
+          <div className="row">
+            <div className="col-12">
+              <div className="card border-0 shadow-sm rounded-4">
+                <div className="card-body p-4">
+                  <div className="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                      <h5 className="fw-bold mb-1">⚠️ Danh Sách Sách Quá Hạn</h5>
+                      <p className="text-muted small mb-0">Phiếu mượn đã quá hạn trả ({overdueList.length} phiếu)</p>
+                    </div>
+                    <div className="d-flex gap-2">
+                      <button className="btn btn-outline-warning rounded-pill px-3 fw-semibold" onClick={fetchOverdue}>
+                        🔄 Làm mới
+                      </button>
+                      <button className="btn btn-warning rounded-pill px-3 fw-semibold" onClick={handleUpdateOverdue}>
+                        🔔 Cập nhật Overdue Status
+                      </button>
+                    </div>
+                  </div>
+                  {overdueLoading ? (
+                    <div className="text-center py-5"><div className="spinner-border text-warning" /></div>
+                  ) : overdueList.length === 0 ? (
+                    <div className="text-center py-5 text-muted">
+                      <div style={{ fontSize: "3rem" }}>🎉</div>
+                      <p className="mt-2">Không có phiếu mượn quá hạn!</p>
+                    </div>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="table table-hover">
+                        <thead className="table-light">
+                          <tr>
+                            <th className="py-3 px-4">Phiếu #</th>
+                            <th>Độc giả</th>
+                            <th>SĐT / Email</th>
+                            <th>Tên sách</th>
+                            <th>Hạn trả</th>
+                            <th className="text-danger">Số ngày trễ</th>
+                            <th className="text-danger">Tiền phạt ước tính</th>
+                            <th className="text-center">Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {overdueList.map((r, i) => {
+                            const days = Number(r.OverdueDays || r.overdueDays || 0);
+                            const est = Number(r.EstimatedFine || r.estimatedFine || 0);
+                            return (
+                              <tr key={i} className={days > 30 ? "table-danger" : days > 7 ? "table-warning" : ""}>
+                                <td className="py-3 px-4 fw-bold">#{r.BorrowSlipId || r.borrowSlipId}</td>
+                                <td className="fw-medium">{r.ReaderName || r.readerName || "—"}</td>
+                                <td className="small text-muted">
+                                  {r.PhoneNumber || r.phoneNumber || "—"}<br />
+                                  <span className="text-primary">{r.Email || r.email || ""}</span>
+                                </td>
+                                <td>{r.BookTitle || r.bookTitle || "—"}</td>
+                                <td className="text-muted small">
+                                  {r.DueDate ? new Date(r.DueDate).toLocaleDateString("vi-VN") : "—"}
+                                </td>
+                                <td>
+                                  <span className="badge bg-danger rounded-pill px-3">
+                                    {days} ngày
+                                  </span>
+                                </td>
+                                <td className="fw-bold text-danger">
+                                  {est.toLocaleString()}đ
+                                </td>
+                                <td className="text-center">
+                                  <button
+                                    className="btn btn-sm btn-outline-success rounded-pill px-3"
+                                    onClick={() => openReturnDbModal(r)}
+                                  >
+                                    🔄 Trả sách
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===================== RETURN DB MODAL ===================== */}
+        {showReturnDbModal && selectedDetail && (
+          <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.55)" }}>
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content border-0 shadow-lg rounded-4">
+                <div className="modal-header border-0 bg-gradient-subtle rounded-top-4">
+                  <h5 className="modal-title fw-bold">🔄 Xác Nhận Trả Sách</h5>
+                  <button className="btn-close" onClick={() => setShowReturnDbModal(false)} />
+                </div>
+                <div className="modal-body p-4">
+                  <div className="mb-4 p-3 rounded-3 bg-light">
+                    <p className="mb-1"><strong>📖 Sách:</strong> {selectedDetail.BookTitle || selectedDetail.bookTitle || "—"}</p>
+                    <p className="mb-1"><strong>👤 Độc giả:</strong> {selectedDetail.ReaderName || selectedDetail.readerName || "—"}</p>
+                    <p className="mb-0"><strong>📋 Phiếu #:</strong> {selectedDetail.BorrowSlipId || selectedDetail.borrowSlipId}</p>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">Tình trạng sách</label>
+                    <select
+                      className="form-select rounded-3"
+                      value={returnCondition}
+                      onChange={e => setReturnCondition(e.target.value)}
+                    >
+                      <option value="Good">✅ Tốt (Good)</option>
+                      <option value="Slightly damaged">⚠️ Hơi hỏng (Slightly damaged)</option>
+                      <option value="Lost">❌ Mất sách (Lost)</option>
+                    </select>
+                  </div>
+                  <div className="alert alert-info rounded-3 small">
+                    💡 Tiền phạt quá hạn = số ngày trễ × 5.000 VND (tính tự động)
+                  </div>
+                </div>
+                <div className="modal-footer border-0 pt-0">
+                  <button className="btn btn-light rounded-pill px-4" onClick={() => setShowReturnDbModal(false)}>
+                    Hủy
+                  </button>
+                  <button
+                    className="btn btn-success rounded-pill px-4 fw-semibold"
+                    onClick={handleReturnDb}
+                    disabled={returning}
+                  >
+                    {returning ? "⏳ Đang xử lý..." : "✅ Xác nhận trả sách"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Add/Edit Modal */}
         {showModal && (
           <div
@@ -767,17 +1180,11 @@ function LibrarianBookManagement() {
                     ))}
 
                     <div className="col-12">
-                      <label className="form-label fw-semibold">
-                        🖼️ Cover Image URL
-                      </label>
-                      <input
-                        type="text"
-                        name="coverImage"
-                        className="form-control form-control-lg"
-                        value={bookForm.coverImage}
-                        onChange={handleFormChange}
-                        placeholder="Enter cover image URL"
-                      />
+                      <div className="alert alert-info mb-0 py-2 px-3 small">
+                        🖼️ Ảnh bìa sách sẽ được tự động lấy theo mã ISBN
+                        (nguồn: openlibrary.org). Nhập ISBN chính xác để có
+                        ảnh bìa đúng.
+                      </div>
                     </div>
 
                     <div className="col-md-6">
@@ -891,6 +1298,101 @@ function LibrarianBookManagement() {
                     onClick={handleReturnBook}
                   >
                     ✅ Process Return
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Borrow Ticket Modal */}
+        {showBorrowModal && (
+          <div
+            className="modal show d-block"
+            style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          >
+            <div className="modal-dialog modal-lg modal-dialog-centered">
+              <div className="modal-content border-0 shadow-lg rounded-4">
+                <div className="modal-header border-0 pb-0">
+                  <h4 className="modal-title fw-bold">
+                    📝 Tạo Phiếu Mượn Sách (Create Borrow Ticket)
+                  </h4>
+                  <button
+                    className="btn-close"
+                    onClick={() => setShowBorrowModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body p-4">
+                  <div className="row g-4">
+                    {/* Member Selection */}
+                    <div className="col-12">
+                      <label className="form-label fw-semibold">
+                        👤 Chọn Độc Giả (Select Member) <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        className="form-select form-select-lg"
+                        value={borrowMemberId}
+                        onChange={(e) => setBorrowMemberId(e.target.value)}
+                      >
+                        <option value="">-- Choose Member --</option>
+                        {membersList.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            #{m.id} - {m.name} ({m.email})
+                          </option>
+                        ))}
+                      </select>
+                      <small className="text-muted">
+                        Hoặc nhập trực tiếp Member ID:
+                      </small>
+                      <input
+                        type="text"
+                        className="form-control mt-1"
+                        placeholder="Type Member ID directly if not in dropdown"
+                        value={borrowMemberId}
+                        onChange={(e) => setBorrowMemberId(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Book Selection */}
+                    <div className="col-12">
+                      <label className="form-label fw-semibold">
+                        📖 Chọn Sách (Select Book) <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        className="form-select form-select-lg"
+                        value={borrowBookId}
+                        onChange={(e) => setBorrowBookId(e.target.value)}
+                      >
+                        <option value="">-- Choose Book --</option>
+                        {books
+                          .filter((b) => b.availableCopies > 0)
+                          .map((b) => (
+                            <option key={b.id} value={b.id}>
+                              #{b.id} - {b.title} (Author: {b.author}) - [{b.availableCopies} available]
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div className="col-12">
+                      <div className="alert alert-info py-2 px-3 mb-0 small">
+                        💡 Phiếu mượn sẽ tự động tính hạn trả là <strong>14 ngày</strong> kể từ thời điểm tạo. Độc giả cần tuân thủ thời hạn để tránh phí phạt trả chậm.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer border-0 pt-0">
+                  <button
+                    className="btn btn-secondary btn-lg px-4"
+                    onClick={() => setShowBorrowModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-success btn-lg px-4 fw-semibold"
+                    onClick={handleCreateBorrowTicket}
+                  >
+                    ✅ Tạo Phiếu Mượn
                   </button>
                 </div>
               </div>

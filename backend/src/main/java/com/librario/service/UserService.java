@@ -18,6 +18,8 @@ public interface UserService {
 
     Long getMemberIdByUserEmail(String email);
 
+    String updateUser(Long userId, UserDTO userDTO);
 
+    String deleteUser(Long userId);
 }
 

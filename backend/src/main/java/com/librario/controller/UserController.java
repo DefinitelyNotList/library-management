@@ -113,6 +113,18 @@ public class UserController {
         return userRepository.countByRole_RoleName("MEMBER");
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> updateUser(@PathVariable Long id, @RequestBody UserDTO userDTO) {
+        String response = userService.updateUser(id, userDTO);
+        return ResponseEntity.ok(response);
+    }
 
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> deleteUser(@PathVariable Long id) {
+        String response = userService.deleteUser(id);
+        return ResponseEntity.ok(response);
+    }
 
 }

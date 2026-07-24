@@ -56,8 +56,7 @@ public class JwtFilter extends OncePerRequestFilter {
             try {
                 email = jwtUtil.extractUsername(token);
             } catch (Exception e) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                return;
+                // Ignore invalid or expired token so public permitAll requests can proceed
             }
         }
 

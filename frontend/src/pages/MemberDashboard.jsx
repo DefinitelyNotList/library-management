@@ -24,60 +24,85 @@ function MemberDashboard() {
   useEffect(() => {
     const fetchMemberData = async () => {
       try {
-        const memberId = localStorage.getItem("memberId");
-        const token = localStorage.getItem("token");
+        let memberId = localStorage.getItem("memberId");
+
+        // Fallback for memberId if missing
+        if (!memberId) {
+          const username = localStorage.getItem("username");
+          if (username) {
+            try {
+              const usersRes = await axiosInstance.get("/users");
+              const me = usersRes.data.find(
+                (u) => u.name === username || u.email === username
+              );
+              if (me) {
+                memberId = me.id;
+                localStorage.setItem("memberId", me.id);
+              }
+            } catch (e) {
+              console.warn("Failed user lookup fallback:", e);
+            }
+          }
+        }
+
+        if (!memberId) return;
 
         // Member details
-        const memberResp = await axios.get(
-          `http://localhost:8080/api/membership/members/${memberId}`,
-          { headers: { Authorization: token } }
-        );
-        setBorrowingLimit(memberResp.data.membershipPlan.borrowingLimit);
-        setMemberData(memberResp.data);
+        try {
+          const memberResp = await axiosInstance.get(
+            `/membership/members/${memberId}`
+          );
+          if (memberResp.data?.membershipPlan?.borrowingLimit) {
+            setBorrowingLimit(memberResp.data.membershipPlan.borrowingLimit);
+          }
+          setMemberData(memberResp.data);
+        } catch (e) {
+          console.warn("Could not load member details:", e);
+        }
 
-        // Borrowing history
-        const historyResp = await axios.get(
-          `http://localhost:8080/api/transactions/member/${memberId}`,
-          { headers: { Authorization: token } }
-        );
-        let filteredHistory = historyResp.data.map((record) => ({
-          ...record,
-          issuedBy: record.issuedBy === "LIBRARIAN" ? "Librarian" : "Self",
-        }));
-        setIssuedBooks(filteredHistory);
+        // Borrowing history (real DB via vw_BorrowSlipDetails)
+        try {
+          const historyResp = await axiosInstance.get(
+            `/library/borrows/history?readerId=${memberId}`
+          );
+          if (Array.isArray(historyResp.data)) {
+            setIssuedBooks(historyResp.data);
+          }
+        } catch (e) {
+          // Fallback to old endpoint
+          try {
+            const fallback = await axiosInstance.get(`/transactions/member/${memberId}`);
+            if (Array.isArray(fallback.data)) setIssuedBooks(fallback.data);
+          } catch { console.warn("Could not load history."); }
+        }
 
         // Penalties
-        const penaltyResp = await axios.get(
-          `http://localhost:8080/api/borrow/penalties/${memberId}`,
-          { headers: { Authorization: token } }
-        );
-        const penaltyData = penaltyResp.data;
-        setPenalties(penaltyData);
-        const total = penaltyData.reduce((sum, p) => sum + p.amount, 0);
-        setTotalPenalty(total);
+        try {
+          const penaltyResp = await axiosInstance.get(
+            `/borrow/penalties/${memberId}`
+          );
+          if (Array.isArray(penaltyResp.data)) {
+            setPenalties(penaltyResp.data);
+            const total = penaltyResp.data.reduce(
+              (sum, p) => sum + (p.amount || 0),
+              0
+            );
+            setTotalPenalty(total);
+          }
+        } catch (e) {
+          console.warn("Could not load penalties:", e);
+        }
 
         // Book requests
-        const requestsResp = await axios.get(
-          `http://localhost:8080/api/requests/member/${memberId}`,
-          { headers: { Authorization: token } }
-        );
-        setRequests(requestsResp.data);
-
-        // Refresh issued books if any request approved
-        const hasApproved = requestsResp.data.some(
-          (r) => r.status === "APPROVED"
-        );
-        if (hasApproved) {
-          const latestHistoryResp = await axios.get(
-            `http://localhost:8080/api/transactions/member/${memberId}`,
-            { headers: { Authorization: token } }
+        try {
+          const requestsResp = await axiosInstance.get(
+            `/requests/member/${memberId}`
           );
-          filteredHistory = latestHistoryResp.data.map((record) => ({
-            ...record,
-            issuedBy:
-              record.issuedBy === "LIBRARIAN" ? "Librarian" : "Self Borrowed",
-          }));
-          setIssuedBooks(filteredHistory);
+          if (Array.isArray(requestsResp.data)) {
+            setRequests(requestsResp.data);
+          }
+        } catch (e) {
+          console.warn("Could not load requests:", e);
         }
       } catch (err) {
         console.error("Failed to fetch member data:", err);
@@ -89,13 +114,31 @@ function MemberDashboard() {
 
   const goToManageBooks = () => navigate("/book-catalog");
 
-  const totalIssued = issuedBooks.filter(
-    (b) => b.status === "BORROWED" || b.status === "OVERDUE"
-  ).length;
+  // Compute active borrows and due-soon (within 3 days)
+  const activeBorrows = issuedBooks.filter(b => {
+    const s = (b.SlipStatus || b.slipStatus || b.status || "").toLowerCase();
+    return s === "borrowing" || s === "borrowed" || s === "overdue";
+  });
+
+  const dueSoonBooks = issuedBooks.filter(b => {
+    const s = (b.SlipStatus || b.slipStatus || "").toLowerCase();
+    if (s !== "borrowing") return false;
+    const due = new Date(b.DueDate || b.dueDate);
+    if (isNaN(due)) return false;
+    const diffDays = (due - new Date()) / (1000 * 60 * 60 * 24);
+    return diffDays >= 0 && diffDays <= 3;
+  });
+
+  const overdueBooks = issuedBooks.filter(b => {
+    const s = (b.SlipStatus || b.slipStatus || "").toLowerCase();
+    return s === "overdue";
+  });
+
+  const totalIssued = activeBorrows.length;
   const dueBooksCount = totalIssued;
 
-  const recentActivity = issuedBooks
-    .sort((a, b) => new Date(b.borrowDate) - new Date(a.borrowDate))
+  const recentActivity = [...issuedBooks]
+    .sort((a, b) => new Date(b.BorrowDate || b.borrowDate) - new Date(a.BorrowDate || a.borrowDate))
     .slice(0, 3);
 
   const handleRenewMembership = async () => {
@@ -475,7 +518,11 @@ function MemberDashboard() {
         {/* Enhanced Header */}
         <nav className="navbar navbar-expand-lg header-nav sticky-top mt-5 pt-5">
           <div className="container">
-            <div className="d-flex align-items-center">
+            <div
+              className="d-flex align-items-center"
+              style={{ cursor: "pointer" }}
+              onClick={() => navigate("/member-dashboard")}
+            >
               <div className="brand-icon me-3">📚</div>
               <div>
                 <h4 className="mb-0 text-white fw-bold">LibraryHub</h4>
@@ -531,6 +578,58 @@ function MemberDashboard() {
               </div>
             </div>
           </div>
+
+          {/* ⚠️ Due-Soon and Overdue Alert Banners */}
+          {overdueBooks.length > 0 && (
+            <div className="row mb-3">
+              <div className="col-12">
+                <div className="alert border-0 rounded-4 shadow-sm" style={{ background: "linear-gradient(135deg,#ff6b6b,#ee5a52)", color: "white" }}>
+                  <div className="d-flex align-items-center gap-3">
+                    <span style={{ fontSize: "1.8rem" }}>🚨</span>
+                    <div>
+                      <strong>Bạn có {overdueBooks.length} sách đã quá hạn trả!</strong>
+                      <div style={{ fontSize: "0.88rem", opacity: 0.9 }}>
+                        {overdueBooks.map(b => b.BookTitle || b.bookTitle).join(", ")}
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-light btn-sm rounded-pill ms-auto fw-semibold"
+                      onClick={() => navigate("/borrowing-history")}
+                    >
+                      Xem lịch sử
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {dueSoonBooks.length > 0 && (
+            <div className="row mb-3">
+              <div className="col-12">
+                <div className="alert border-0 rounded-4 shadow-sm" style={{ background: "linear-gradient(135deg,#fa709a,#fee140)", color: "white" }}>
+                  <div className="d-flex align-items-center gap-3">
+                    <span style={{ fontSize: "1.8rem" }}>🔔</span>
+                    <div>
+                      <strong>📅 {dueSoonBooks.length} cuốn sách sắp đến hạn trả (trong 3 ngày tới)!</strong>
+                      <div style={{ fontSize: "0.88rem", opacity: 0.9 }}>
+                        {dueSoonBooks.map(b => {
+                          const due = new Date(b.DueDate || b.dueDate);
+                          const days = Math.ceil((due - new Date()) / (1000 * 60 * 60 * 24));
+                          return `${b.BookTitle || b.bookTitle} (còn ${days} ngày)`;
+                        }).join(" • ")}
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-light btn-sm rounded-pill ms-auto fw-semibold"
+                      onClick={() => navigate("/borrowing-history")}
+                    >
+                      Xem chi tiết
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Enhanced Stats Cards */}
           <div className="row mb-5 stats-container">
@@ -645,7 +744,7 @@ function MemberDashboard() {
               </h3>
             </div>
 
-            <div className="col-lg-4 col-md-6 mb-4">
+            <div className="col-lg-6 col-md-6 mb-4">
               <div className="action-card h-100" onClick={goToManageBooks}>
                 <div className="card-body p-4">
                   <div className="d-flex align-items-center justify-content-between">
@@ -676,7 +775,7 @@ function MemberDashboard() {
               </div>
             </div>
 
-            <div className="col-lg-4 col-md-6 mb-4">
+            <div className="col-lg-6 col-md-6 mb-4">
               <div
                 className="action-card h-100"
                 onClick={() => navigate("/borrowing-history")}
@@ -699,40 +798,6 @@ function MemberDashboard() {
                         <h5 className="fw-bold mb-1">History</h5>
                         <p className="text-muted mb-0 small">
                           View borrowing history
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-primary">
-                      <span style={{ fontSize: "1.5rem" }}>→</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-lg-4 col-md-6 mb-4">
-              <div
-                className="action-card h-100"
-                onClick={handleRenewMembership}
-              >
-                <div className="card-body p-4">
-                  <div className="d-flex align-items-center justify-content-between">
-                    <div className="d-flex align-items-center">
-                      <div
-                        className="icon-container me-3"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
-                          width: "60px",
-                          height: "60px",
-                        }}
-                      >
-                        💳
-                      </div>
-                      <div>
-                        <h5 className="fw-bold mb-1">Renew Membership</h5>
-                        <p className="text-muted mb-0 small">
-                          Extend your membership
                         </p>
                       </div>
                     </div>

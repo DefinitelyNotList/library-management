@@ -30,6 +30,21 @@ function Navbar() {
     }
   };
 
+  const handleBrandClick = (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem("token");
+    const role = localStorage.getItem("role");
+
+    if (token) {
+      if (role === "ADMIN") navigate("/admin-dashboard");
+      else if (role === "LIBRARIAN") navigate("/librarian-dashboard");
+      else if (role === "MEMBER" || role === "READER") navigate("/member-dashboard");
+      else navigate("/");
+    } else {
+      navigate("/");
+    }
+  };
+
   return (
     <>
       <nav
@@ -43,21 +58,23 @@ function Navbar() {
       >
         <div className="container-fluid px-4">
           {/* Brand Logo */}
-          <Link
+          <a
             className="navbar-brand fs-3 fw-bold text-white d-flex align-items-center"
-            to="/"
+            href="/"
+            onClick={handleBrandClick}
             style={{
               textDecoration: "none",
               transition: "all 0.3s ease",
               filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))",
+              cursor: "pointer",
             }}
             onMouseOver={(e) => {
-              e.target.style.transform = "scale(1.05)";
-              e.target.style.textShadow = "0 0 20px rgba(255,255,255,0.5)";
+              e.currentTarget.style.transform = "scale(1.05)";
+              e.currentTarget.style.textShadow = "0 0 20px rgba(255,255,255,0.5)";
             }}
             onMouseOut={(e) => {
-              e.target.style.transform = "scale(1)";
-              e.target.style.textShadow = "";
+              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.textShadow = "";
             }}
           >
             <div
@@ -83,7 +100,7 @@ function Navbar() {
             >
               Librario
             </span>
-          </Link>
+          </a>
 
           {/* Mobile Toggle Button */}
           <button

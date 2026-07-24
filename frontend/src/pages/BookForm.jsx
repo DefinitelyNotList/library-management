@@ -1,5 +1,5 @@
-import axios from "axios";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import axiosInstance from "../utils/axiosInstance";
 
 function BookForm({ book, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -15,7 +15,36 @@ function BookForm({ book, onClose, onSuccess }) {
     coverImage: book ? book.coverImage : "",
   });
 
+  const [authorsList, setAuthorsList] = useState([]);
+  const [categoriesList, setCategoriesList] = useState([]);
+  const [publishersList, setPublishersList] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchLookups();
+  }, []);
+
+  const fetchLookups = async () => {
+    try {
+      const [authorsRes, catRes, pubRes] = await Promise.allSettled([
+        axiosInstance.get("/library/lookups/authors"),
+        axiosInstance.get("/library/lookups/categories"),
+        axiosInstance.get("/library/lookups/publishers"),
+      ]);
+
+      if (authorsRes.status === "fulfilled" && Array.isArray(authorsRes.value.data)) {
+        setAuthorsList(authorsRes.value.data);
+      }
+      if (catRes.status === "fulfilled" && Array.isArray(catRes.value.data)) {
+        setCategoriesList(catRes.value.data);
+      }
+      if (pubRes.status === "fulfilled" && Array.isArray(pubRes.value.data)) {
+        setPublishersList(pubRes.value.data);
+      }
+    } catch (e) {
+      console.warn("Could not fetch lookups:", e);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -25,20 +54,11 @@ function BookForm({ book, onClose, onSuccess }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
       if (book) {
-        await axios.put(
-          `http://localhost:8080/api/books/${book.id}`,
-          formData,
-          {
-            headers: { Authorization: token },
-          }
-        );
+        await axiosInstance.put(`/books/${book.id}`, formData);
         alert("✅ Book updated successfully!");
       } else {
-        await axios.post("http://localhost:8080/api/books", formData, {
-          headers: { Authorization: token },
-        });
+        await axiosInstance.post("/books", formData);
         alert("✅ Book added successfully!");
       }
       onSuccess();
@@ -95,9 +115,20 @@ function BookForm({ book, onClose, onSuccess }) {
                     name: "author",
                     type: "text",
                     required: true,
+                    list: "authors-list",
                   },
-                  { label: "Genre", name: "genre", type: "text" },
-                  { label: "Publisher", name: "publisher", type: "text" },
+                  {
+                    label: "Genre (Category)",
+                    name: "genre",
+                    type: "text",
+                    list: "categories-list",
+                  },
+                  {
+                    label: "Publisher",
+                    name: "publisher",
+                    type: "text",
+                    list: "publishers-list",
+                  },
                   {
                     label: "Year",
                     name: "year",
@@ -137,9 +168,27 @@ function BookForm({ book, onClose, onSuccess }) {
                       min={field.min || undefined}
                       max={field.max || undefined}
                       required={field.required || false}
+                      list={field.list || undefined}
                     />
                   </div>
                 ))}
+
+                {/* Datalists for DB Lookups */}
+                <datalist id="authors-list">
+                  {authorsList.map((a) => (
+                    <option key={a.id || a.name} value={a.name} />
+                  ))}
+                </datalist>
+                <datalist id="categories-list">
+                  {categoriesList.map((c) => (
+                    <option key={c.id || c.name} value={c.name} />
+                  ))}
+                </datalist>
+                <datalist id="publishers-list">
+                  {publishersList.map((p) => (
+                    <option key={p.id || p.name} value={p.name} />
+                  ))}
+                </datalist>
 
                 <div className="col-md-6">
                   <label className="form-label">Status *</label>

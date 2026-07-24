@@ -53,10 +53,12 @@ public class SecurityConfig {
                                 "/api/users/reset-password"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/books/**").permitAll()
-                        .requestMatchers("/api/books/**", "/api/library/**")
+                        .requestMatchers("/api/library/statistics", "/api/library/top-books")
+                        .authenticated()
+                        .requestMatchers("/api/library/borrows/history")
+                        .authenticated()
+                        .requestMatchers("/api/library/**")
                         .hasAnyRole("ADMIN", "LIBRARIAN")
-                        // Admin-only endpoints
-//                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

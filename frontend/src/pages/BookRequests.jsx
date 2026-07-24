@@ -1,7 +1,6 @@
-// src/pages/BookRequests.jsx
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axiosInstance from "../utils/axiosInstance";
 
 function BookRequests() {
   const [requests, setRequests] = useState([]);
@@ -14,14 +13,32 @@ function BookRequests() {
     const fetchRequests = async () => {
       try {
         setLoading(true);
-        const memberId = localStorage.getItem("memberId");
-        const token = localStorage.getItem("token");
+        let memberId = localStorage.getItem("memberId");
 
-        const response = await axios.get(
-          `http://localhost:8080/api/requests/member/${memberId}`,
-          { headers: { Authorization: token } }
+        if (!memberId) {
+          const username = localStorage.getItem("username");
+          if (username) {
+            try {
+              const usersRes = await axiosInstance.get("/users");
+              const me = usersRes.data.find(
+                (u) => u.name === username || u.email === username
+              );
+              if (me) memberId = me.id;
+            } catch (e) {
+              console.warn("Failed member lookup:", e);
+            }
+          }
+        }
+
+        if (!memberId) {
+          setRequests([]);
+          return;
+        }
+
+        const response = await axiosInstance.get(
+          `/requests/member/${memberId}`
         );
-        setRequests(response.data);
+        setRequests(Array.isArray(response.data) ? response.data : []);
       } catch (err) {
         console.error("Failed to fetch requests:", err);
       } finally {

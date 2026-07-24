@@ -1,14 +1,38 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axiosInstance from "../utils/axiosInstance";
 
 function AdminDashboard() {
   const username = localStorage.getItem("username") || "Admin";
   const navigate = useNavigate();
   const [isLoaded, setIsLoaded] = useState(false);
+  const [stats, setStats] = useState({
+    TotalBooks: 0,
+    TotalReaders: 0,
+    TotalLibrarians: 0,
+    TotalBorrowSlips: 0,
+    CurrentlyBorrowing: 0,
+    OverdueSlips: 0,
+    TotalFineCollected: 0,
+  });
 
   useEffect(() => {
     setIsLoaded(true);
+    fetchStats();
   }, []);
+
+  const fetchStats = async () => {
+    try {
+      const res = await axiosInstance.get("/library/statistics");
+      if (res.data) {
+        setStats(res.data);
+      }
+    } catch (e) {
+      console.warn("Could not load library statistics:", e);
+    }
+  };
+
+  const getStat = (key1, key2) => stats[key1] ?? stats[key2] ?? 0;
 
   return (
     <>
@@ -71,100 +95,37 @@ function AdminDashboard() {
         }
 
         .card-hover:hover {
-          transform: translateY(-10px) scale(1.02);
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+          transform: translateY(-8px);
+          box-shadow: 0 15px 30px rgba(0, 0, 0, 0.12) !important;
         }
 
         .icon-bg {
-          width: 80px;
-          height: 80px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 20px;
+          width: 60px;
+          height: 60px;
+          border-radius: 18px;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 2.5rem;
           margin: 0 auto 1rem;
-          transition: all 0.4s ease;
-          box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
-        }
-
-        .card-hover:hover .icon-bg {
-          transform: rotate(5deg) scale(1.05);
+          font-size: 1.8rem;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
         .btn-modern {
-          position: relative;
-          overflow: hidden;
-          transition: all 0.3s ease;
           font-weight: 600;
-        }
-
-        .btn-modern::before {
-          content: "";
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(255, 255, 255, 0.3),
-            transparent
-          );
-          transition: left 0.5s;
-        }
-
-        .btn-modern:hover::before {
-          left: 100%;
-        }
-
-        .btn-modern:hover {
-          transform: translateY(-2px);
+          letter-spacing: 0.5px;
+          padding: 8px 20px;
+          transition: all 0.3s ease;
         }
 
         .action-btn-enhanced {
-          transition: all 0.3s ease;
           font-weight: 600;
-          position: relative;
-          overflow: hidden;
+          transition: all 0.3s ease;
         }
 
         .action-btn-enhanced:hover {
           transform: translateY(-3px);
-        }
-
-        .floating-btn {
-          position: fixed;
-          bottom: 30px;
-          right: 30px;
-          width: 60px;
-          height: 60px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border: none;
-          border-radius: 50%;
-          box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-          font-size: 1.5rem;
-          color: white;
-          transition: all 0.3s ease;
-          z-index: 1000;
-          animation: float 3s ease-in-out infinite;
-        }
-
-        .floating-btn:hover {
-          transform: scale(1.1);
-          box-shadow: 0 15px 35px rgba(102, 126, 234, 0.6);
-        }
-
-        @keyframes float {
-          0%,
-          100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-10px);
-          }
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2) !important;
         }
 
         .decorative-bg {
@@ -174,7 +135,7 @@ function AdminDashboard() {
           width: 100%;
           height: 100%;
           pointer-events: none;
-          z-index: -1;
+          z-index: 0;
         }
 
         .bg-circle {
@@ -201,6 +162,11 @@ function AdminDashboard() {
           right: 5%;
           animation-delay: 3s;
         }
+
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+        }
       `}</style>
 
       <div className="decorative-bg">
@@ -210,9 +176,9 @@ function AdminDashboard() {
 
       <div className="dashboard-container mt-4 pt-4">
         <div className="container" style={{ marginTop: "90px" }}>
-          {/* Header - EXACTLY as your original */}
+          {/* Header */}
           <div className={`fade-in ${isLoaded ? "loaded" : ""}`}>
-            <div className="hero-header rounded-4 p-4 mb-5 shadow-sm position-relative">
+            <div className="hero-header rounded-4 p-4 mb-4 shadow-sm position-relative">
               <div className="d-flex flex-wrap align-items-center justify-content-between">
                 <div>
                   <h2 className="fw-bold text-light mb-1">
@@ -226,9 +192,70 @@ function AdminDashboard() {
             </div>
           </div>
 
+          {/* Live DB Statistics Grid */}
+          <div className={`fade-in ${isLoaded ? "loaded" : ""} stagger-1 mb-4`}>
+            <div className="row g-3">
+              <div className="col-md-2 col-6">
+                <div className="card border-0 shadow-sm rounded-4 text-center p-3 bg-white">
+                  <span className="fs-3">📚</span>
+                  <h4 className="fw-bold text-dark mb-0 mt-2">
+                    {getStat("TotalBooks", "totalBooks")}
+                  </h4>
+                  <small className="text-muted">Total Books</small>
+                </div>
+              </div>
+              <div className="col-md-2 col-6">
+                <div className="card border-0 shadow-sm rounded-4 text-center p-3 bg-white">
+                  <span className="fs-3">👥</span>
+                  <h4 className="fw-bold text-primary mb-0 mt-2">
+                    {getStat("TotalReaders", "totalReaders")}
+                  </h4>
+                  <small className="text-muted">Readers</small>
+                </div>
+              </div>
+              <div className="col-md-2 col-6">
+                <div className="card border-0 shadow-sm rounded-4 text-center p-3 bg-white">
+                  <span className="fs-3">👨‍🏫</span>
+                  <h4 className="fw-bold text-success mb-0 mt-2">
+                    {getStat("TotalLibrarians", "totalLibrarians")}
+                  </h4>
+                  <small className="text-muted">Librarians</small>
+                </div>
+              </div>
+              <div className="col-md-2 col-6">
+                <div className="card border-0 shadow-sm rounded-4 text-center p-3 bg-white">
+                  <span className="fs-3">📜</span>
+                  <h4 className="fw-bold text-info mb-0 mt-2">
+                    {getStat("CurrentlyBorrowing", "currentlyBorrowing")}
+                  </h4>
+                  <small className="text-muted">Active Loans</small>
+                </div>
+              </div>
+              <div className="col-md-2 col-6">
+                <div className="card border-0 shadow-sm rounded-4 text-center p-3 bg-white">
+                  <span className="fs-3">⚠️</span>
+                  <h4 className="fw-bold text-danger mb-0 mt-2">
+                    {getStat("OverdueSlips", "overdueSlips")}
+                  </h4>
+                  <small className="text-muted">Overdue Slips</small>
+                </div>
+              </div>
+              <div className="col-md-2 col-6">
+                <div className="card border-0 shadow-sm rounded-4 text-center p-3 bg-white">
+                  <span className="fs-3">💰</span>
+                  <h4 className="fw-bold text-warning mb-0 mt-2">
+                    {Number(getStat("TotalFineCollected", "totalFineCollected")).toLocaleString()}
+                  </h4>
+                  <small className="text-muted">Fines (VND)</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Simple Cards with View All - EXACTLY as your original */}
-          <div className="row g-4 mb-5">
-            <div className="col-md-4">
+          {/* Admin Cards */}
+          <div className="row g-4 mb-5 justify-content-center">
+            <div className="col-md-5">
               <div className={`fade-in ${isLoaded ? "loaded" : ""} stagger-1`}>
                 <div className="card card-hover shadow-sm border-0 rounded-4 h-100 text-center p-4">
                   <div className="icon-bg text-white">👨‍🏫</div>
@@ -242,7 +269,7 @@ function AdminDashboard() {
                 </div>
               </div>
             </div>
-            <div className="col-md-4">
+            <div className="col-md-5">
               <div className={`fade-in ${isLoaded ? "loaded" : ""} stagger-2`}>
                 <div className="card card-hover shadow-sm border-0 rounded-4 h-100 text-center p-4">
                   <div className="icon-bg text-white">👥</div>
@@ -256,31 +283,11 @@ function AdminDashboard() {
                 </div>
               </div>
             </div>
-            <div className="col-md-4">
-              <div className={`fade-in ${isLoaded ? "loaded" : ""} stagger-3`}>
-                <div className="card card-hover shadow-sm border-0 rounded-4 h-100 text-center p-4">
-                  <div className="icon-bg text-white">💳</div>
-                  <h5 className="fw-bold text-warning">Membership Plans</h5>
-                  <button
-                    className="btn btn-outline-warning btn-sm rounded-pill mt-3 btn-modern"
-                    onClick={() => navigate("/admin/membership-plans")}
-                  >
-                    View All
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
 
-          {/* Main Actions - EXACTLY as your original */}
-          <div className={`fade-in ${isLoaded ? "loaded" : ""} stagger-4`}>
+          {/* Main Actions */}
+          <div className={`fade-in ${isLoaded ? "loaded" : ""} stagger-3`}>
             <div className="d-flex flex-wrap justify-content-center gap-3 mb-5">
-              <button
-                className="btn btn-info px-4 py-2 rounded-pill shadow-sm action-btn-enhanced"
-                onClick={() => navigate("/admin/members")}
-              >
-                📚 Membership Management
-              </button>
               <button
                 className="btn btn-warning px-4 py-2 rounded-pill shadow-sm action-btn-enhanced"
                 onClick={() => navigate("/admin/add-librarian")}
@@ -293,15 +300,16 @@ function AdminDashboard() {
               >
                 ➕ Add Member
               </button>
+              <button
+                className="btn btn-info text-white px-4 py-2 rounded-pill shadow-sm action-btn-enhanced"
+                onClick={() => navigate("/admin/reports")}
+              >
+                📊 Reports & Analytics
+              </button>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Floating Action Button */}
-      <button className="floating-btn" title="Quick Actions">
-        ⚡
-      </button>
     </>
   );
 }

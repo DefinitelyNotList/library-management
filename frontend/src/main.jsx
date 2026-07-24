@@ -22,7 +22,9 @@ import AddBook from "./pages/AddBook";
 import AddLibrarian from "./pages/AddLibrarian";
 import AdminAddMember from "./pages/AdminAddMember";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminReports from "./pages/AdminReports";
 import BookCatalog from "./pages/BookCatalog";
+import BookDetailPage from "./pages/BookDetailPage";
 import BookForm from "./pages/BookForm";
 import BookList from "./pages/BookList";
 import BookManagement from "./pages/BookManagement";
@@ -34,8 +36,6 @@ import LibrariansList from "./pages/LibrariansList";
 import LibrarianTransactionHistory from "./pages/LibrarianTransactionHistory";
 import ManageBooks from "./pages/ManageBooks";
 import MemberDashboard from "./pages/MemberDashboard";
-import Members from "./pages/Members";
-import MembershipPlans from "./pages/MembershipPlans";
 import MembersList from "./pages/MembersList";
 import Unauthorized from "./pages/Unauthorized";
 
@@ -72,7 +72,6 @@ function AppRoutes() {
       <Route path="/manage-books" element={<BookManagement />} />
       <Route path="/edit-book/:id" element={<EditBook />} />
       <Route path="/admin/add-librarian" element={<AddLibrarian />} />
-      <Route path="/admin/membership-plans" element={<MembershipPlans />} />
       <Route path="/librarian/book-form" element={<BookForm />} />
       <Route path="/member-penalty" element={<MemberPenalty />} />
       <Route path="/borrowing-history" element={<BorrowingHistory />} />
@@ -84,6 +83,8 @@ function AppRoutes() {
         element={<LibrarianTransactionHistory />}
       />
       <Route path="/admin/add-member" element={<AdminAddMember />} />
+      <Route path="/admin/reports" element={<AdminReports />} />
+      <Route path="/books/:id" element={<BookDetailPage />} />
 
       {/* Dashboards */}
       <Route
@@ -91,14 +92,6 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredRole="ADMIN">
             <AdminDashboard />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/admin/members"
-        element={
-          <PrivateRoute requiredRole="ADMIN">
-            <Members />
           </PrivateRoute>
         }
       />

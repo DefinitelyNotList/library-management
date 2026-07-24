@@ -1,15 +1,44 @@
+import axios from "axios";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 function LandingPage() {
   const [scrollY, setScrollY] = useState(0);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
+  const [books, setBooks] = useState([]);
+  const [loadingBooks, setLoadingBooks] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedGenre, setSelectedGenre] = useState("ALL");
+  const [selectedStatus, setSelectedStatus] = useState("ALL");
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    fetchPublicBooks();
+  }, []);
+
+  const fetchPublicBooks = async () => {
+    try {
+      setLoadingBooks(true);
+      const res = await axios.get("http://localhost:8080/api/books", {
+        headers: {},
+      });
+      const data = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.content)
+        ? res.data.content
+        : [];
+      setBooks(data);
+    } catch (err) {
+      console.error("Failed to fetch books for landing page:", err);
+    } finally {
+      setLoadingBooks(false);
+    }
+  };
 
   // Auto-rotate testimonials
   useEffect(() => {
@@ -18,6 +47,33 @@ function LandingPage() {
     }, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Compute unique genres
+  const genres = ["ALL", ...new Set(books.map((b) => b.genre).filter(Boolean))];
+
+  const isAvail = (book) =>
+    (book.availableCopies !== undefined && book.availableCopies > 0) ||
+    (book.status && book.status.toLowerCase().includes("avail"));
+
+  // Filtered books
+  const filteredBooks = books.filter((book) => {
+    const q = searchQuery.toLowerCase().trim();
+    const matchesQuery =
+      !q ||
+      (book.title && book.title.toLowerCase().includes(q)) ||
+      (book.author && book.author.toLowerCase().includes(q)) ||
+      (book.isbn && book.isbn.toLowerCase().includes(q));
+
+    const matchesGenre = selectedGenre === "ALL" || book.genre === selectedGenre;
+    const avail = isAvail(book);
+
+    const matchesStatus =
+      selectedStatus === "ALL" ||
+      (selectedStatus === "AVAILABLE" && avail) ||
+      (selectedStatus === "UNAVAILABLE" && !avail);
+
+    return matchesQuery && matchesGenre && matchesStatus;
+  });
 
   const features = [
     {
@@ -29,9 +85,9 @@ function LandingPage() {
     },
     {
       icon: "👥",
-      title: "Membership Plans",
+      title: "Reader Management",
       description:
-        "Manage readers with customizable borrowing limits and membership tiers.",
+        "Manage readers, issue borrow tickets, and track active loans effortlessly.",
       color: "#1E3A8A",
     },
     {
@@ -118,7 +174,7 @@ function LandingPage() {
 
           <div className="collapse navbar-collapse" id="navbarNav">
             <ul className="navbar-nav me-auto mb-2 mb-lg-0">
-              {["Home", "About", "Features", "Contact"].map((item) => (
+              {["Home", "Books", "Features", "About", "Contact"].map((item) => (
                 <li key={item} className="nav-item">
                   <a
                     className="nav-link fw-semibold px-3"
@@ -442,6 +498,165 @@ function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Library Books Section (Public View & Filtering) */}
+      <section id="books" className="py-5" style={{ background: "#ffffff" }}>
+        <div className="container">
+          <div className="text-center mb-5">
+            <h2
+              className="display-4 fw-bold mb-3"
+              style={{
+                fontFamily: "'Poppins', sans-serif",
+                background: "linear-gradient(135deg, #0D9488 0%, #1E3A8A 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              📚 Library Books Catalog
+            </h2>
+            <p
+              className="lead text-muted"
+              style={{ fontFamily: "'Open Sans', sans-serif" }}
+            >
+              Explore all books available in our library collection
+            </p>
+          </div>
+
+          {/* Filtering Bar */}
+          <div className="row g-3 mb-4 p-4 rounded-4 shadow-sm bg-light">
+            <div className="col-md-5">
+              <div className="input-group">
+                <span className="input-group-text bg-white border-0">🔍</span>
+                <input
+                  type="text"
+                  className="form-control border-0 bg-white"
+                  placeholder="Search by title, author, or ISBN..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="col-md-3">
+              <select
+                className="form-select border-0 bg-white"
+                value={selectedGenre}
+                onChange={(e) => setSelectedGenre(e.target.value)}
+              >
+                <option value="ALL">🏷️ All Genres</option>
+                {genres
+                  .filter((g) => g !== "ALL")
+                  .map((genre) => (
+                    <option key={genre} value={genre}>
+                      {genre}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="col-md-3">
+              <select
+                className="form-select border-0 bg-white"
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+              >
+                <option value="ALL">⚙️ All Statuses</option>
+                <option value="AVAILABLE">Available Only</option>
+                <option value="UNAVAILABLE">Unavailable Only</option>
+              </select>
+            </div>
+            <div className="col-md-1 d-flex align-items-center">
+              <button
+                className="btn btn-outline-secondary w-100 rounded-pill"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedGenre("ALL");
+                  setSelectedStatus("ALL");
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          {/* Books List Grid */}
+          {loadingBooks ? (
+            <div className="text-center py-5">
+              <div className="spinner-border text-primary" role="status"></div>
+              <p className="mt-2 text-muted">Loading books...</p>
+            </div>
+          ) : filteredBooks.length === 0 ? (
+            <div className="text-center py-5 bg-light rounded-4">
+              <span style={{ fontSize: "3rem" }}>🔍</span>
+              <h5 className="mt-3 text-muted">No books found</h5>
+              <p className="text-muted">
+                Try adjusting your search query or filter settings.
+              </p>
+            </div>
+          ) : (
+            <div className="row g-4">
+              {filteredBooks.map((book) => (
+                <div key={book.id} className="col-md-6 col-lg-3">
+                  <div
+                    className="card h-100 border-0 shadow-sm rounded-4 overflow-hidden"
+                    style={{ transition: "all 0.3s ease" }}
+                  >
+                    <div style={{ height: "220px", overflow: "hidden", background: "#e2e8f0" }}>
+                      {book.coverImage ? (
+                        <img
+                          src={book.coverImage}
+                          alt={book.title}
+                          className="w-100 h-100"
+                          style={{ objectFit: "cover" }}
+                        />
+                      ) : book.isbn ? (
+                        <img
+                          src={`https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`}
+                          alt={book.title}
+                          className="w-100 h-100"
+                          style={{ objectFit: "cover" }}
+                        />
+                      ) : (
+                        <div className="d-flex align-items-center justify-content-center h-100">
+                          <span style={{ fontSize: "4rem" }}>📖</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="card-body p-4 d-flex flex-column">
+                      <span
+                        className={`badge mb-2 align-self-start ${
+                          isAvail(book)
+                            ? "bg-success-subtle text-success border border-success"
+                            : "bg-danger-subtle text-danger border border-danger"
+                        }`}
+                      >
+                        {isAvail(book) ? "AVAILABLE" : "UNAVAILABLE"}
+                      </span>
+                      <h5 className="card-title fw-bold text-dark mb-1 text-truncate">
+                        {book.title}
+                      </h5>
+                      <p className="text-muted small mb-2">by {book.author || "Unknown"}</p>
+                      
+                      <div className="mt-auto">
+                        <div className="d-flex justify-content-between text-muted small mb-3">
+                          <span>Genre: <strong>{book.genre || "N/A"}</strong></span>
+                          <span>Stock: <strong>{book.availableCopies ?? 1}/{book.totalCopies ?? 1}</strong></span>
+                        </div>
+                        <Link
+                          to="/login"
+                          className="btn btn-outline-primary w-100 rounded-pill fw-semibold"
+                        >
+                          🔒 Login to Borrow
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

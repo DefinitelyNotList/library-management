@@ -9,6 +9,16 @@ export default function LibrariansList() {
   const [err, setErr] = useState("");
   const [view, setView] = useState("table");
 
+  // Edit State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState({
+    id: null,
+    name: "",
+    email: "",
+    role: "LIBRARIAN",
+    password: "",
+  });
+
   const load = async () => {
     setLoading(true);
     setErr("");
@@ -32,6 +42,42 @@ export default function LibrariansList() {
   useEffect(() => {
     load();
   }, []);
+
+  const handleOpenEdit = (user) => {
+    setEditingUser({
+      id: user.id,
+      name: user.name || "",
+      email: user.email || "",
+      role: user.role || "LIBRARIAN",
+      password: "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    try {
+      await axiosInstance.put(`/users/${editingUser.id}`, editingUser);
+      alert("✅ Librarian updated successfully!");
+      setShowEditModal(false);
+      load();
+    } catch (error) {
+      console.error("Failed to update librarian:", error);
+      alert("❌ Failed to update librarian.");
+    }
+  };
+
+  const handleDeleteUser = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this librarian?")) return;
+    try {
+      await axiosInstance.delete(`/users/${id}`);
+      alert("✅ Librarian deleted successfully!");
+      load();
+    } catch (error) {
+      console.error("Failed to delete librarian:", error);
+      alert("❌ Failed to delete librarian.");
+    }
+  };
 
   const filtered = useMemo(() => {
     const needle = q.toLowerCase().trim();
@@ -108,6 +154,7 @@ export default function LibrariansList() {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th className="text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -141,6 +188,20 @@ export default function LibrariansList() {
                   <td>
                     <span className="badge bg-primary">{r.role}</span>
                   </td>
+                  <td className="text-center">
+                    <button
+                      className="btn btn-sm btn-outline-primary me-2"
+                      onClick={() => handleOpenEdit(r)}
+                    >
+                      ✏️ Edit
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline-danger"
+                      onClick={() => handleDeleteUser(r.id)}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -154,7 +215,6 @@ export default function LibrariansList() {
                 className="card shadow-sm h-100 card-hover"
                 style={{
                   transition: "all 0.3s",
-                  cursor: "pointer",
                 }}
               >
                 <div className="card-body d-flex flex-column justify-content-center align-items-center text-center">
@@ -177,17 +237,123 @@ export default function LibrariansList() {
                     overlay={<Tooltip>{r.email}</Tooltip>}
                   >
                     <p
-                      className="card-text text-truncate"
+                      className="card-text text-truncate mb-2"
                       style={{ maxWidth: 200 }}
                     >
                       {r.email || "-"}
                     </p>
                   </OverlayTrigger>
-                  <span className="badge bg-primary">{r.role}</span>
+                  <span className="badge bg-primary mb-3">{r.role}</span>
+                  <div className="d-flex gap-2">
+                    <button
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={() => handleOpenEdit(r)}
+                    >
+                      ✏️ Edit
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline-danger"
+                      onClick={() => handleDeleteUser(r.id)}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Edit Librarian Modal */}
+      {showEditModal && (
+        <div
+          className="modal show d-block"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg rounded-4">
+              <form onSubmit={handleSaveEdit}>
+                <div className="modal-header border-0 pb-0">
+                  <h5 className="modal-title fw-bold">✏️ Edit Librarian Information</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowEditModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body p-4">
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">Full Name</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editingUser.name}
+                      onChange={(e) =>
+                        setEditingUser({ ...editingUser, name: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">Email Address</label>
+                    <input
+                      type="email"
+                      className="form-control"
+                      value={editingUser.email}
+                      onChange={(e) =>
+                        setEditingUser({ ...editingUser, email: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">Role</label>
+                    <select
+                      className="form-select"
+                      value={editingUser.role}
+                      onChange={(e) =>
+                        setEditingUser({ ...editingUser, role: e.target.value })
+                      }
+                    >
+                      <option value="LIBRARIAN">LIBRARIAN</option>
+                      <option value="ADMIN">ADMIN</option>
+                      <option value="MEMBER">MEMBER</option>
+                    </select>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">
+                      New Password (leave blank to keep unchanged)
+                    </label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      placeholder="Enter new password if changing"
+                      value={editingUser.password}
+                      onChange={(e) =>
+                        setEditingUser({
+                          ...editingUser,
+                          password: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="modal-footer border-0 pt-0">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowEditModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary fw-semibold">
+                    ✅ Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       )}
 

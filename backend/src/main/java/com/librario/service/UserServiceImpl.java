@@ -249,5 +249,35 @@ public class UserServiceImpl implements UserService {
         return localPart.length() > 50 ? localPart.substring(0, 50) : localPart;
     }
 
+    @Override
+    public String updateUser(Long userId, UserDTO userDTO) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
+        if (userDTO.getName() != null && !userDTO.getName().trim().isEmpty()) {
+            user.setName(userDTO.getName());
+        }
+        if (userDTO.getEmail() != null && !userDTO.getEmail().trim().isEmpty()) {
+            user.setEmail(userDTO.getEmail());
+        }
+        if (userDTO.getRole() != null && !userDTO.getRole().trim().isEmpty()) {
+            String roleName = userDTO.getRole().toUpperCase();
+            if ("MEMBER".equals(roleName)) roleName = "READER";
+            user.setLibraryRole(roleName);
+        }
+        if (userDTO.getPassword() != null && !userDTO.getPassword().trim().isEmpty()) {
+            user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
+        }
+        userRepository.save(user);
+        return "User updated successfully";
+    }
+
+    @Override
+    public String deleteUser(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            return "User not found";
+        }
+        userRepository.deleteById(userId);
+        return "User deleted successfully";
+    }
 }

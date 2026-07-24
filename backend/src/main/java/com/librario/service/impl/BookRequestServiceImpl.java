@@ -34,8 +34,14 @@ public class BookRequestServiceImpl implements BookRequestService {
 
     @Override
     public BookRequest createRequest(Long memberId, Long bookId) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new RuntimeException("Member not found"));
+        // Try finding by member PK first, then fall back to finding by UserId
+        Member member = memberRepository.findById(memberId).orElse(null);
+        if (member == null) {
+            member = memberRepository.findByUserId(memberId);
+        }
+        if (member == null) {
+            throw new RuntimeException("Member not found for id=" + memberId + ". Please ensure member account is active.");
+        }
         Book book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new RuntimeException("Book not found"));
 
@@ -50,8 +56,13 @@ public class BookRequestServiceImpl implements BookRequestService {
 
     @Override
     public List<BookRequest> getRequestsByMember(Long memberId) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new RuntimeException("Member not found"));
+        Member member = memberRepository.findById(memberId).orElse(null);
+        if (member == null) {
+            member = memberRepository.findByUserId(memberId);
+        }
+        if (member == null) {
+            return List.of(); // return empty list if no member found
+        }
         return bookRequestRepository.findByMember(member);
     }
 
