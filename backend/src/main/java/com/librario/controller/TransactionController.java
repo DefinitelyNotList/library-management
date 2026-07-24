@@ -18,7 +18,7 @@ public class TransactionController {
         this.transactionService = transactionService;
     }
 
-    // Issue a book
+    // Issue a single book
     @PostMapping("/issue/{memberId}/{bookId}")
     @PreAuthorize("hasAnyRole('LIBRARIAN','ADMIN')")
     public ResponseEntity<Transaction> issueBook(
@@ -27,6 +27,17 @@ public class TransactionController {
     ) {
         Transaction transaction = transactionService.issueBook(memberId, bookId);
         return ResponseEntity.ok(transaction);
+    }
+
+    // Issue multiple books (up to 5) in one ticket
+    @PostMapping("/issue-bulk/{memberId}")
+    @PreAuthorize("hasAnyRole('LIBRARIAN','ADMIN')")
+    public ResponseEntity<List<Transaction>> issueBooks(
+            @PathVariable Long memberId,
+            @RequestBody List<Long> bookIds
+    ) {
+        List<Transaction> transactions = transactionService.issueBooks(memberId, bookIds);
+        return ResponseEntity.ok(transactions);
     }
 
     // Return a book (handled only by Librarian/Admin with condition & penalty)

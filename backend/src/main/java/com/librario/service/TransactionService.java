@@ -8,6 +8,9 @@ public interface TransactionService {
     // Issue a book to a member
     Transaction issueBook(Long memberId, Long bookId);
 
+    // Issue multiple books (up to 5) to a member in one batch
+    List<Transaction> issueBooks(Long memberId, List<Long> bookIds);
+
     // Return a borrowed book (with condition & penalty check)
     Transaction returnBook(Long transactionId, String bookCondition, int damagePenalty);
 

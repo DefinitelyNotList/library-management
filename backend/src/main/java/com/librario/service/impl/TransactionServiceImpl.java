@@ -35,13 +35,16 @@ public class TransactionServiceImpl implements TransactionService {
     @Transactional
     public Transaction issueBook(Long memberId, Long bookId) {
         Member member = memberRepo.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+                .orElseGet(() -> memberRepo.findByUserId(memberId));
+        if (member == null) {
+            throw new IllegalArgumentException("Member not found for ID: " + memberId);
+        }
 
         Book book = bookRepo.findById(bookId)
                 .orElseThrow(() -> new IllegalArgumentException("Book not found: " + bookId));
 
         if (book.getAvailableCopies() <= 0) {
-            throw new IllegalStateException("No copies available to issue");
+            throw new IllegalStateException("No copies available to issue for book: " + book.getTitle());
         }
 
         Transaction transaction = new Transaction();
@@ -56,6 +59,22 @@ public class TransactionServiceImpl implements TransactionService {
         bookRepo.save(book);
 
         return transactionRepo.save(transaction);
+    }
+
+    @Override
+    @Transactional
+    public List<Transaction> issueBooks(Long memberId, List<Long> bookIds) {
+        if (bookIds == null || bookIds.isEmpty()) {
+            throw new IllegalArgumentException("Vui lòng chọn ít nhất 1 quyển sách.");
+        }
+        if (bookIds.size() > 5) {
+            throw new IllegalArgumentException("Mỗi phiếu mượn được mượn tối đa 5 quyển sách.");
+        }
+        List<Transaction> transactions = new java.util.ArrayList<>();
+        for (Long bookId : bookIds) {
+            transactions.add(issueBook(memberId, bookId));
+        }
+        return transactions;
     }
 
     @Override

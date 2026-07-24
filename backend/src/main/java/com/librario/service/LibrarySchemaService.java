@@ -56,6 +56,7 @@ public class LibrarySchemaService {
         if(!validUser(r.readerId(),"READER")||!validUser(r.librarianId(),"LIBRARIAN")) throw new IllegalArgumentException("Độc giả hoặc thủ thư không hợp lệ/đã bị khóa.");
         if(jdbc.queryForObject("SELECT COUNT(*) FROM BorrowSlips WHERE ReaderId=? AND Status='Overdue'",Integer.class,r.readerId())>0) throw new IllegalStateException("Độc giả đang có phiếu mượn quá hạn.");
         List<Integer> ids=r.bookIds().stream().distinct().toList();
+        if(ids.size() > 5) throw new IllegalArgumentException("Mỗi phiếu mượn tối đa 5 quyển sách.");
         for(Integer id:ids) { Integer available=jdbc.queryForObject("SELECT AvailableQuantity FROM Books WITH (UPDLOCK,ROWLOCK) WHERE BookId=?",Integer.class,id); if(available==null||available<=0) throw new IllegalStateException("Sách mã " + id + " không còn sẵn."); }
         LocalDateTime now=LocalDateTime.now(), due=now.plusDays(days);
         jdbc.update("INSERT INTO BorrowSlips (ReaderId,LibrarianId,BorrowDate,DueDate,Status) VALUES (?,?,?,?, 'Borrowing')",r.readerId(),r.librarianId(),now,due);
@@ -79,7 +80,12 @@ public class LibrarySchemaService {
     public List<Map<String,Object>> allBorrows() { return jdbc.queryForList("SELECT bs.BorrowSlipId, bs.BorrowDate, bs.DueDate, bs.Status AS SlipStatus, r.UserId AS ReaderId, r.FullName AS ReaderName, r.Email AS ReaderEmail, l.FullName AS LibrarianName, bd.BorrowDetailId, bk.BookId, bk.Title AS BookTitle, bd.ReturnDate, bd.FineAmount, bd.BookCondition FROM BorrowSlips bs JOIN Users r ON bs.ReaderId=r.UserId JOIN Users l ON bs.LibrarianId=l.UserId JOIN BorrowDetails bd ON bd.BorrowSlipId=bs.BorrowSlipId JOIN Books bk ON bd.BookId=bk.BookId ORDER BY bs.BorrowSlipId DESC"); }
     private Map<String,Object> mapBook(java.sql.ResultSet rs) throws java.sql.SQLException { Map<String,Object> m=new LinkedHashMap<>(); m.put("id",rs.getInt("BookId"));m.put("title",rs.getString("Title"));m.put("author",rs.getString("AuthorName"));m.put("genre",rs.getString("CategoryName"));m.put("publisher",rs.getString("PublisherName"));m.put("year",rs.getObject("PublishYear"));m.put("isbn",rs.getString("ISBN"));m.put("totalCopies",rs.getInt("Quantity"));m.put("availableCopies",rs.getInt("AvailableQuantity"));m.put("status",rs.getString("Status"));return m; }
     private Integer lookup(String table,String id,String nameColumn,String name) { if(name==null||name.isBlank()) return null; List<Integer> ids=jdbc.query("SELECT "+id+" FROM "+table+" WHERE "+nameColumn+"=?",(rs,i)->rs.getInt(1),name.trim()); if(!ids.isEmpty())return ids.getFirst();jdbc.update("INSERT INTO "+table+" ("+nameColumn+") VALUES (?)",name.trim());return jdbc.queryForObject("SELECT CAST(SCOPE_IDENTITY() AS INT)",Integer.class); }
-    private boolean validUser(int id,String role) { return jdbc.queryForObject("SELECT COUNT(*) FROM Users WHERE UserId=? AND Role=? AND IsActive=1",Integer.class,id,role)==1; }
+    private boolean validUser(int id,String role) {
+        if ("READER".equalsIgnoreCase(role)) {
+            return jdbc.queryForObject("SELECT COUNT(*) FROM Users WHERE UserId=? AND (Role='READER' OR Role='MEMBER') AND IsActive=1",Integer.class,id) >= 1;
+        }
+        return jdbc.queryForObject("SELECT COUNT(*) FROM Users WHERE UserId=? AND Role=? AND IsActive=1",Integer.class,id)==1;
+    }
     private void validate(BookUpsertRequest r) { if(r.title()==null||r.title().isBlank())throw new IllegalArgumentException("Tên sách là bắt buộc.");if(r.totalCopies()==null||r.availableCopies()==null||r.totalCopies()<0||r.availableCopies()<0||r.availableCopies()>r.totalCopies())throw new IllegalArgumentException("Số lượng sách không hợp lệ.");if(r.year()!=null&&(r.year()<1000||r.year()>2100))throw new IllegalArgumentException("Năm xuất bản không hợp lệ."); }
     private String status(BookUpsertRequest r) { return r.availableCopies()==0||"Out of stock".equalsIgnoreCase(r.status())||"UNAVAILABLE".equalsIgnoreCase(r.status())?"Out of stock":"Available"; }
     private String empty(String value) { return value==null||value.isBlank()?null:value.trim(); }

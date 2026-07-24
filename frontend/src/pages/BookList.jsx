@@ -1,6 +1,6 @@
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import axiosInstance from "../utils/axiosInstance";
 
 function BookList() {
   const [books, setBooks] = useState([]);
@@ -8,35 +8,14 @@ function BookList() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const getToken = () => {
-    const rawToken = localStorage.getItem("token");
-    if (!rawToken) return null;
-
-    const cleaned = rawToken.trim().replace(/\s/g, "");
-    if (cleaned.split(".").length !== 3) return null; // JWT format check
-    return cleaned;
-  };
-
   useEffect(() => {
     fetchBooks();
   }, [location]);
 
   const fetchBooks = async () => {
     try {
-      const token = getToken();
-      if (!token) {
-        console.error("No valid token");
-        navigate("/login");
-        return;
-      }
-
-      const response = await axios.get("http://localhost:8080/api/books", {
-        headers: {
-          Authorization: token,
-        },
-      });
-
-      setBooks(response.data);
+      const response = await axiosInstance.get("/books");
+      setBooks(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Error fetching books", error);
       if (error.response?.status === 401) {
@@ -52,22 +31,10 @@ function BookList() {
     }
 
     try {
-      const token = getToken();
-      if (!token) {
-        console.error("No token found");
-        navigate("/login");
-        return;
-      }
-
-      const response = await axios.get(
-        `http://localhost:8080/api/books/search/title?title=${query}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const response = await axiosInstance.get(
+        `/books/search/title?title=${encodeURIComponent(query)}`
       );
-      setBooks(response.data);
+      setBooks(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Search failed", error);
       if (error.response?.status === 401) {
@@ -79,35 +46,23 @@ function BookList() {
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this book?")) {
       try {
-        const token = getToken();
-        if (!token) {
-          console.error("No token found");
-          navigate("/login");
-          return;
-        }
-
-        await axios.delete(`http://localhost:8080/api/books/${id}`, {
-          headers: {
-            Authorization: token,
-          },
-        });
+        await axiosInstance.delete(`/books/${id}`);
+        alert("✅ Book deleted successfully!");
         fetchBooks();
       } catch (error) {
         console.error("Error deleting book", error);
-        if (error.response?.status === 401) {
-          navigate("/login");
-        }
+        alert(error.response?.data?.message || "❌ Error deleting book");
       }
     }
   };
 
   const handleEdit = (book) => {
-    navigate("/edit-book", { state: { book } });
+    navigate(`/edit-book/${book.id}`, { state: { book } });
   };
 
   return (
-    <div className="container mt-4">
-      <h2>📚 Book Catalog</h2>
+    <div className="container mt-5 pt-5">
+      <h2 className="mb-4 mt-4 text-center fw-bold">📚 Book Catalog</h2>
 
       <div className="d-flex mb-3">
         <input
@@ -116,13 +71,14 @@ function BookList() {
           value={query}
           className="form-control me-2"
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
         />
         <button className="btn btn-primary" onClick={handleSearch}>
           Search
         </button>
       </div>
 
-      <table className="table table-bordered">
+      <table className="table table-bordered shadow-sm">
         <thead className="table-light">
           <tr>
             <th>Title</th>
@@ -137,13 +93,13 @@ function BookList() {
           {books.length > 0 ? (
             books.map((book) => (
               <tr key={book.id}>
-                <td>{book.title}</td>
+                <td className="fw-semibold">{book.title}</td>
                 <td>{book.author}</td>
                 <td>{book.genre}</td>
                 <td>
                   {book.availableCopies} / {book.totalCopies}
                 </td>
-                <td>{book.year}</td>
+                <td>{book.year || "-"}</td>
                 <td>
                   <button
                     className="btn btn-sm btn-warning me-2"
@@ -162,7 +118,7 @@ function BookList() {
             ))
           ) : (
             <tr>
-              <td colSpan="6" className="text-center">
+              <td colSpan="6" className="text-center text-muted">
                 No books found.
               </td>
             </tr>

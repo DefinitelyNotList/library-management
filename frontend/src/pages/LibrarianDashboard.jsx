@@ -46,6 +46,7 @@ function LibrarianBookManagement() {
   const [membersList, setMembersList] = useState([]);
   const [borrowMemberId, setBorrowMemberId] = useState("");
   const [borrowBookId, setBorrowBookId] = useState("");
+  const [selectedBookIds, setSelectedBookIds] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
 
@@ -259,38 +260,60 @@ function LibrarianBookManagement() {
     }
   };
 
-  // ISSUE BOOK
+  // ISSUE BOOK (Supports 1-5 Books)
   const openIssueModal = (book = null) => {
     if (book) {
-      setBorrowBookId(book.id);
+      setSelectedBookIds([book.id]);
     } else {
-      setBorrowBookId("");
+      setSelectedBookIds([]);
     }
     setBorrowMemberId("");
     fetchMembersList();
     setShowBorrowModal(true);
   };
 
+  const toggleBookSelection = (bookId) => {
+    if (selectedBookIds.includes(bookId)) {
+      setSelectedBookIds(selectedBookIds.filter((id) => id !== bookId));
+    } else {
+      if (selectedBookIds.length >= 5) {
+        alert("⚠️ Bạn chỉ được chọn tối đa 5 quyển sách cho mỗi phiếu mượn.");
+        return;
+      }
+      setSelectedBookIds([...selectedBookIds, bookId]);
+    }
+  };
+
   const handleCreateBorrowTicket = async () => {
-    if (!borrowMemberId || !borrowBookId) {
-      alert("⚠️ Please select both a Member and a Book.");
+    if (!borrowMemberId) {
+      alert("⚠️ Vui lòng chọn Độc giả.");
+      return;
+    }
+    if (selectedBookIds.length === 0) {
+      alert("⚠️ Vui lòng chọn ít nhất 1 quyển sách.");
+      return;
+    }
+    if (selectedBookIds.length > 5) {
+      alert("⚠️ Mỗi phiếu mượn được mượn tối đa 5 quyển sách.");
       return;
     }
 
     try {
-      await axios.post(
-        `http://localhost:8080/api/transactions/issue/${borrowMemberId}/${borrowBookId}`,
-        {},
-        { headers: getAuthHeader() }
+      await axiosInstance.post(
+        `/transactions/issue-bulk/${borrowMemberId}`,
+        selectedBookIds
       );
-      alert("✅ Borrow ticket created successfully!");
+      alert(`✅ Đã tạo phiếu mượn thành công cho ${selectedBookIds.length} quyển sách!`);
       setShowBorrowModal(false);
       setBorrowMemberId("");
-      setBorrowBookId("");
+      setSelectedBookIds([]);
       fetchBooks();
     } catch (err) {
       console.error(err);
-      alert("❌ Failed to create borrow ticket: " + (err.response?.data?.message || err.message));
+      alert(
+        "❌ Tạo phiếu mượn thất bại: " +
+          (err.response?.data?.message || err.message)
+      );
     }
   };
 
@@ -1315,7 +1338,7 @@ function LibrarianBookManagement() {
               <div className="modal-content border-0 shadow-lg rounded-4">
                 <div className="modal-header border-0 pb-0">
                   <h4 className="modal-title fw-bold">
-                    📝 Tạo Phiếu Mượn Sách (Create Borrow Ticket)
+                    📝 Tạo Phiếu Mượn Sách (Tối đa 5 quyển)
                   </h4>
                   <button
                     className="btn-close"
@@ -1353,30 +1376,60 @@ function LibrarianBookManagement() {
                       />
                     </div>
 
-                    {/* Book Selection */}
+                    {/* Book Selection Checklist (up to 5 books) */}
                     <div className="col-12">
-                      <label className="form-label fw-semibold">
-                        📖 Chọn Sách (Select Book) <span className="text-danger">*</span>
-                      </label>
-                      <select
-                        className="form-select form-select-lg"
-                        value={borrowBookId}
-                        onChange={(e) => setBorrowBookId(e.target.value)}
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <label className="form-label fw-semibold mb-0">
+                          📖 Chọn Sách Mượn (Select Books) <span className="text-danger">*</span>
+                        </label>
+                        <span className={`badge ${selectedBookIds.length === 5 ? "bg-warning text-dark" : "bg-primary"}`}>
+                          Đã chọn: {selectedBookIds.length}/5 quyển
+                        </span>
+                      </div>
+
+                      <div
+                        className="border rounded-3 p-3 bg-light"
+                        style={{ maxHeight: "250px", overflowY: "auto" }}
                       >
-                        <option value="">-- Choose Book --</option>
-                        {books
-                          .filter((b) => b.availableCopies > 0)
-                          .map((b) => (
-                            <option key={b.id} value={b.id}>
-                              #{b.id} - {b.title} (Author: {b.author}) - [{b.availableCopies} available]
-                            </option>
-                          ))}
-                      </select>
+                        {books.filter((b) => (b.availableCopies > 0 || (b.status && b.status.toLowerCase().includes("avail")))).length === 0 ? (
+                          <p className="text-muted mb-0">Không có sách sẵn có để cho mượn.</p>
+                        ) : (
+                          books
+                            .filter((b) => (b.availableCopies > 0 || (b.status && b.status.toLowerCase().includes("avail"))))
+                            .map((b) => {
+                              const isChecked = selectedBookIds.includes(b.id);
+                              return (
+                                <div
+                                  key={b.id}
+                                  className="form-check d-flex align-items-center py-2 border-bottom"
+                                >
+                                  <input
+                                    className="form-check-input me-3 fs-5"
+                                    type="checkbox"
+                                    id={`dash-book-check-${b.id}`}
+                                    checked={isChecked}
+                                    onChange={() => toggleBookSelection(b.id)}
+                                  />
+                                  <label
+                                    className="form-check-label w-100 cursor-pointer"
+                                    htmlFor={`dash-book-check-${b.id}`}
+                                  >
+                                    <strong>{b.title}</strong> —{" "}
+                                    <span className="text-muted">{b.author || "Unknown"}</span>{" "}
+                                    <span className="badge bg-success-subtle text-success ms-2">
+                                      Còn {b.availableCopies ?? 1} cuốn
+                                    </span>
+                                  </label>
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
                     </div>
 
                     <div className="col-12">
                       <div className="alert alert-info py-2 px-3 mb-0 small">
-                        💡 Phiếu mượn sẽ tự động tính hạn trả là <strong>14 ngày</strong> kể từ thời điểm tạo. Độc giả cần tuân thủ thời hạn để tránh phí phạt trả chậm.
+                        💡 Mỗi phiếu mượn có thể chọn <strong>từ 1 đến 5 quyển sách</strong> cùng lúc. Thời hạn mượn mặc định là 14 ngày.
                       </div>
                     </div>
                   </div>
@@ -1391,8 +1444,9 @@ function LibrarianBookManagement() {
                   <button
                     className="btn btn-success btn-lg px-4 fw-semibold"
                     onClick={handleCreateBorrowTicket}
+                    disabled={selectedBookIds.length === 0 || !borrowMemberId}
                   >
-                    ✅ Tạo Phiếu Mượn
+                    ✅ Tạo Phiếu Mượn ({selectedBookIds.length} cuốn)
                   </button>
                 </div>
               </div>
