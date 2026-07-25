@@ -1,11 +1,4 @@
 # Library Management System
----
-
-## Overview
-A full-stack Library Management System developed during my Java Full Stack internship at **Infosys Springboard**.  
-It streamlines management of books, user accounts, memberships, borrowing/returning, fine tracking, notifications.
-
----
 
 ## Tech Stack
 - **Backend:** Java, Spring Boot, SQL Server, REST APIs, JWT Authentication  
