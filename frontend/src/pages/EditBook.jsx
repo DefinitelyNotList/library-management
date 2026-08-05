@@ -1,6 +1,6 @@
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import axiosInstance from "../utils/axiosInstance";
 
 function EditBook() {
   const { id } = useParams(); // Book ID from URL
@@ -19,8 +19,8 @@ function EditBook() {
 
   // Fetch book details on load
   useEffect(() => {
-    axios
-      .get(`http://localhost:8080/api/books/${id}`)
+    axiosInstance
+      .get(`/books/${id}`)
       .then((res) => setBook(res.data))
       .catch((err) => console.error("Error fetching book:", err));
   }, [id]);
@@ -31,14 +31,23 @@ function EditBook() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const payload = {
+      ...book,
+      year: book.year === "" ? null : Number(book.year),
+      totalCopies: book.totalCopies === "" ? null : Number(book.totalCopies),
+      availableCopies: book.availableCopies === "" ? null : Number(book.availableCopies),
+    };
 
-    axios
-      .put(`http://localhost:8080/api/books/${id}`, book)
+    axiosInstance
+      .put(`/books/${id}`, payload)
       .then(() => {
         alert("✅ Book updated successfully!");
         navigate("/manage-books");
       })
-      .catch((err) => console.error("Error updating book:", err));
+      .catch((err) => {
+        console.error("Error updating book:", err);
+        alert("❌ " + (err.response?.data?.message || "Failed to update book."));
+      });
   };
 
   return (

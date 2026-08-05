@@ -13,14 +13,14 @@ public class BookRequest {
     private Long id;
 
     // Member who is requesting
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "member_id", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Member member;
 
     // Requested Book
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "book_id", nullable = false)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "book_id", referencedColumnName = "BookId", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Book book;
 

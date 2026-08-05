@@ -1,6 +1,8 @@
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import axiosInstance from "../utils/axiosInstance";
+import { cleanIsbn, getOpenLibraryCoverUrl } from "../utils/bookUtils";
+import BookCoverImage from "./BookCoverImage";
 
 function LandingPage() {
   const [scrollY, setScrollY] = useState(0);
@@ -24,9 +26,7 @@ function LandingPage() {
   const fetchPublicBooks = async () => {
     try {
       setLoadingBooks(true);
-      const res = await axios.get("http://localhost:8080/api/books", {
-        headers: {},
-      });
+      const res = await axiosInstance.get("/books");
       const data = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.content)
@@ -603,25 +603,16 @@ function LandingPage() {
                     style={{ transition: "all 0.3s ease" }}
                   >
                     <div style={{ height: "220px", overflow: "hidden", background: "#e2e8f0" }}>
-                      {book.coverImage ? (
-                        <img
-                          src={book.coverImage}
-                          alt={book.title}
-                          className="w-100 h-100"
-                          style={{ objectFit: "cover" }}
-                        />
-                      ) : book.isbn ? (
-                        <img
-                          src={`https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`}
-                          alt={book.title}
-                          className="w-100 h-100"
-                          style={{ objectFit: "cover" }}
-                        />
-                      ) : (
-                        <div className="d-flex align-items-center justify-content-center h-100">
-                          <span style={{ fontSize: "4rem" }}>📖</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const coverUrl = book.coverImage || getOpenLibraryCoverUrl(book.isbn, "M");
+                        return coverUrl ? (
+                          <BookCoverImage coverUrl={coverUrl} title={book.title} height="220px" className="w-100 h-100" />
+                        ) : (
+                          <div className="d-flex align-items-center justify-content-center h-100">
+                            <span style={{ fontSize: "4rem" }}>📖</span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className="card-body p-4 d-flex flex-column">

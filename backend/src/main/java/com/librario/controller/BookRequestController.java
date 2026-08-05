@@ -39,12 +39,14 @@ public class BookRequestController {
 
     // 🔹 Librarian: Approve request
     @PutMapping("/{requestId}/approve")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LIBRARIAN','ADMIN')")
     public ResponseEntity<BookRequest> approveRequest(@PathVariable Long requestId) {
         return ResponseEntity.ok(bookRequestService.approveRequest(requestId));
     }
 
     // 🔹 Librarian: Reject request
     @PutMapping("/{requestId}/reject")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LIBRARIAN','ADMIN')")
     public ResponseEntity<BookRequest> rejectRequest(@PathVariable Long requestId) {
         return ResponseEntity.ok(bookRequestService.rejectRequest(requestId));
     }

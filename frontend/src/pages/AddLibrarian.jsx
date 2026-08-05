@@ -1,6 +1,6 @@
-import axios from "axios";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axiosInstance from "../utils/axiosInstance";
 
 function AddLibrarian() {
   const [form, setForm] = useState({
@@ -21,8 +21,8 @@ function AddLibrarian() {
     e.preventDefault();
 
     try {
-      const response = await axios.post(
-        "http://localhost:8080/api/users/register",
+      const response = await axiosInstance.post(
+        "/users/register",
         {
           name: form.name,
           email: form.email,

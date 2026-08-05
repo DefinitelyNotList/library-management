@@ -1,7 +1,7 @@
 // src/pages/MemberDashboard.jsx
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axiosInstance from "../utils/axiosInstance";
 
 function MemberDashboard() {
   const [username] = useState(localStorage.getItem("username") || "John Doe");
@@ -147,10 +147,8 @@ function MemberDashboard() {
     const token = localStorage.getItem("token");
 
     try {
-      const response = await axios.put(
-        `http://localhost:8080/api/membership/members/${memberId}/renew`,
-        {},
-        { headers: { Authorization: token } }
+      const response = await axiosInstance.put(
+        `/membership/members/${memberId}/renew`
       );
       setMemberData(response.data);
       alert(

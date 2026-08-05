@@ -25,7 +25,7 @@ public class BorrowBookServiceImpl implements BorrowBookService {
     private final BookRepository bookRepo;
     private final BorrowedBookRepository borrowedBookRepo;
 
-    private static final int FINE_PER_DAY = 10; // ₹10 per day
+    private static final int FINE_PER_DAY = 5000; // 5.000 VND per day
 
     public BorrowBookServiceImpl(MemberRepository memberRepo, BookRepository bookRepo,
                                  BorrowedBookRepository borrowedBookRepo) {
@@ -36,8 +36,9 @@ public class BorrowBookServiceImpl implements BorrowBookService {
 
     @Override
     public List<BorrowedBook> getBorrowingHistory(Long memberId) {
-        // Return distinct borrowed books to avoid duplicates
-        return borrowedBookRepo.findByMemberId(memberId)
+        Member member = memberRepo.findByUserId(memberId);
+        Long targetMemberId = member != null ? member.getId() : memberId;
+        return borrowedBookRepo.findByMemberId(targetMemberId)
                 .stream()
                 .distinct()
                 .collect(Collectors.toList());
@@ -61,8 +62,13 @@ public class BorrowBookServiceImpl implements BorrowBookService {
     @Override
     @Transactional
     public BorrowedBook borrowBook(Long memberId, Long bookId) {
-        Member member = memberRepo.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+        Member member = memberRepo.findByUserId(memberId);
+        if (member == null) {
+            member = memberRepo.findById(memberId).orElse(null);
+        }
+        if (member == null) {
+            throw new IllegalArgumentException("Member not found: " + memberId);
+        }
 
         if (member.getStatus() != Member.Status.ACTIVE) {
             throw new IllegalStateException("Member is not active");
@@ -76,9 +82,11 @@ public class BorrowBookServiceImpl implements BorrowBookService {
         }
 
         List<BorrowedBook> activeBorrows =
-                borrowedBookRepo.findByMemberIdAndStatus(memberId, "BORROWED");
+                borrowedBookRepo.findByMemberIdAndStatus(member.getId(), "BORROWED");
 
-        int borrowingLimit = member.getMembershipPlan().getBorrowingLimit();
+        int borrowingLimit = member.getMembershipPlan() != null && member.getMembershipPlan().getBorrowingLimit() != null
+                ? member.getMembershipPlan().getBorrowingLimit()
+                : 5;
         if (activeBorrows.size() >= borrowingLimit) {
             throw new IllegalStateException("Borrowing limit reached");
         }

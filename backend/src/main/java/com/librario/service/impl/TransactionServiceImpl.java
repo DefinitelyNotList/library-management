@@ -21,7 +21,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final BookRepository bookRepo;
 
 
-    private static final int FINE_PER_DAY = 10; // ₹10/day
+    private static final int FINE_PER_DAY = 5000; // 5.000 VND per day
 
     public TransactionServiceImpl(TransactionRepository transactionRepo,
                                   MemberRepository memberRepo,
@@ -34,8 +34,10 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public Transaction issueBook(Long memberId, Long bookId) {
-        Member member = memberRepo.findById(memberId)
-                .orElseGet(() -> memberRepo.findByUserId(memberId));
+        Member member = memberRepo.findByUserId(memberId);
+        if (member == null) {
+            member = memberRepo.findById(memberId).orElse(null);
+        }
         if (member == null) {
             throw new IllegalArgumentException("Member not found for ID: " + memberId);
         }
@@ -130,8 +132,13 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     public List<Transaction> getMemberTransactions(Long memberId) {
-        Member member = memberRepo.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+        Member member = memberRepo.findByUserId(memberId);
+        if (member == null) {
+            member = memberRepo.findById(memberId).orElse(null);
+        }
+        if (member == null) {
+            return List.of();
+        }
         return transactionRepo.findByMember(member);
     }
 

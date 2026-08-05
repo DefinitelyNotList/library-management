@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../utils/axiosInstance";
-import BookForm from "./BookForm";
+import { cleanIsbn, getOpenLibraryCoverUrl } from "../utils/bookUtils";
+import BookCoverImage from "../components/BookCoverImage";
 
 function BookCatalog() {
   const [books, setBooks] = useState([]);
@@ -407,28 +408,19 @@ function BookCatalog() {
                 className="card h-100 shadow-lg border-0 rounded-4 overflow-hidden hover-card"
                 style={{ transition: "transform 0.3s, box-shadow 0.3s" }}
               >
-                {book.coverImage ? (
-                  <img
-                    src={book.coverImage}
-                    alt={book.title}
-                    className="card-img-top"
-                    style={{ height: "250px", objectFit: "cover" }}
-                  />
-                ) : book.isbn ? (
-                  <img
-                    src={`https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`}
-                    alt={book.title}
-                    className="card-img-top"
-                    style={{ height: "250px", objectFit: "cover" }}
-                  />
-                ) : (
-                  <div
-                    className="bg-secondary text-white d-flex align-items-center justify-content-center"
-                    style={{ height: "250px" }}
-                  >
-                    No Image
-                  </div>
-                )}
+                {(() => {
+                  const coverUrl = book.coverImage || getOpenLibraryCoverUrl(book.isbn, "M");
+                  return coverUrl ? (
+                    <BookCoverImage coverUrl={coverUrl} title={book.title} height="250px" />
+                  ) : (
+                    <div
+                      className="bg-secondary text-white d-flex align-items-center justify-content-center"
+                      style={{ height: "250px" }}
+                    >
+                      📖 Không có bìa
+                    </div>
+                  );
+                })()}
 
                 <div className="card-body d-flex flex-column">
                   <h5 className="card-title text-gradient fw-bold text-truncate">

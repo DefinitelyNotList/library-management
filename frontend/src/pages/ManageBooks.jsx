@@ -1,22 +1,14 @@
-// src/pages/ManageBooks.jsx
-import axios from "axios";
 import { useEffect, useState } from "react";
+import axiosInstance from "../utils/axiosInstance";
 
 function ManageBooks() {
   const [books, setBooks] = useState([]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    axios
-      .get("http://localhost:8080/api/books", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    axiosInstance
+      .get("/books")
       .then((res) => {
-        console.log("Books fetched from backend:", res.data);
-        setBooks(res.data);
+        setBooks(Array.isArray(res.data) ? res.data : []);
       })
       .catch((err) => console.error("Error fetching books:", err));
   }, []);

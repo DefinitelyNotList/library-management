@@ -16,7 +16,6 @@ com\librario\model\Role.class
 com\librario\dto\BorrowRequest.class
 com\librario\model\BookRequest.class
 com\librario\service\impl\BookRequestServiceImpl.class
-com\librario\model\Book$BookStatus.class
 com\librario\model\Transaction.class
 com\librario\LibrarioApplication.class
 com\librario\model\BorrowedBook.class
@@ -59,6 +58,7 @@ com\librario\controller\ApiExceptionHandler.class
 com\librario\repository\BorrowedBookRepository.class
 com\librario\service\impl\MembershipPlanServiceImpl.class
 com\librario\model\MembershipPlan.class
+com\librario\config\DatabaseCleanupRunner.class
 com\librario\dto\PenaltyDto.class
 com\librario\service\OTPService.class
 com\librario\controller\LibraryOperationsController.class

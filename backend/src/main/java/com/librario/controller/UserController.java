@@ -49,7 +49,7 @@ public class UserController {
         LoginResponseDTO response = userService.loginUser(loginDTO);
 
 
-        if ("MEMBER".equals(response.getRole())) {
+        if ("MEMBER".equals(response.getRole()) || "READER".equals(response.getRole())) {
             Long memberId = userService.getMemberIdByUserEmail(loginDTO.getEmail());
             response.setMemberId(memberId);
         }
@@ -110,7 +110,7 @@ public class UserController {
     @GetMapping("/members/count")
     @PreAuthorize("hasRole('ADMIN')")
     public long countMembers() {
-        return userRepository.countByRole_RoleName("MEMBER");
+        return userRepository.countByRole_RoleName("READER");
     }
 
     @PutMapping("/{id}")

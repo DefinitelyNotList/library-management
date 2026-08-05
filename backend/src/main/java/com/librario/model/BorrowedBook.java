@@ -48,6 +48,7 @@ public class BorrowedBook {
     private String penaltyStatus = "PENDING"; // initialize at entity level
 
 
+    @Column(name = "penalty_amount")
     private Double penaltyAmount;
 
 //    @Column(nullable = false)

@@ -41,6 +41,9 @@ public class Transaction {
     @Column(name = "status", nullable = false)
     private String status; // BORROWED, RETURNED, RENEWED
 
+    @Column(name = "penalty_status")
+    private String penaltyStatus = "PENDING"; // PENDING, PAID, WAIVED
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -155,5 +158,13 @@ public class Transaction {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getPenaltyStatus() {
+        return penaltyStatus;
+    }
+
+    public void setPenaltyStatus(String penaltyStatus) {
+        this.penaltyStatus = penaltyStatus;
     }
 }

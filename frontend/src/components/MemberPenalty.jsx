@@ -1,5 +1,5 @@
-import axios from "axios";
 import { useEffect, useState } from "react";
+import axiosInstance from "../utils/axiosInstance";
 
 function MemberPenalty() {
   const [penalties, setPenalties] = useState([]);
@@ -17,12 +17,9 @@ function MemberPenalty() {
   const fetchOverduePenalties = async () => {
     try {
       const memberId = localStorage.getItem("memberId");
-      const token = localStorage.getItem("token");
+      if (!memberId) return;
 
-      const response = await axios.get(
-        `http://localhost:8080/api/borrow/penalties/${memberId}`,
-        { headers: { Authorization: token } }
-      );
+      const response = await axiosInstance.get(`/borrow/penalties/${memberId}`);
 
       const overdueData = Array.isArray(response.data)
         ? response.data
@@ -36,19 +33,15 @@ function MemberPenalty() {
       setTotalOverduePenalty(totalOverdue);
     } catch (error) {
       console.error("Error fetching overdue penalties:", error);
-      // Don't show alert for overdue penalties as it might not exist for all users
     }
   };
 
   const fetchPenalties = async () => {
     try {
       const memberId = localStorage.getItem("memberId");
-      const token = localStorage.getItem("token");
+      if (!memberId) return;
 
-      const response = await axios.get(
-        `http://localhost:8080/api/transactions/member/${memberId}`,
-        { headers: { Authorization: token } }
-      );
+      const response = await axiosInstance.get(`/transactions/member/${memberId}`);
 
       const transactions = Array.isArray(response.data) ? response.data : [];
 
@@ -78,8 +71,7 @@ function MemberPenalty() {
       const total = unpaid.reduce((sum, p) => sum + Number(p.amount || 0), 0);
       setTotalPenalty(total + totalOverduePenalty);
     } catch (error) {
-      console.error(error);
-      alert("Cannot fetch penalties");
+      console.error("Error fetching penalties:", error);
     }
   };
 
@@ -164,7 +156,7 @@ function MemberPenalty() {
                         Total Outstanding Amount
                       </h6>
                       <h1 className="display-4 fw-bold mb-2">
-                        ₹{totalPenalty}
+                        {totalPenalty.toLocaleString()}đ
                       </h1>
                       <p className="text-white-50 mb-0">
                         <i className="fas fa-exclamation-triangle me-2"></i>

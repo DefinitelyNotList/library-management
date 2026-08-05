@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
+@Table(name = "Books")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -11,21 +12,33 @@ import lombok.*;
 public class Book {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "BookId", columnDefinition = "INT")
     private Long id;
 
+    @Column(name = "Title")
     private String title;
+
+    @Transient
     private String author;
+
+    @Transient
     private String genre;
+
+    @Transient
     private String publisher;
-    private int year;
+
+    @Column(name = "PublishYear")
+    private Integer year;
+
+    @Column(name = "ISBN")
     private String isbn;
+
+    @Column(name = "Quantity")
     private int totalCopies;
+
+    @Column(name = "AvailableQuantity")
     private int availableCopies;
 
-    @Enumerated(EnumType.STRING)
-    private BookStatus status;
-
-    public enum BookStatus {
-        AVAILABLE, UNAVAILABLE
-    }
+    @Column(name = "Status")
+    private String status;
 }

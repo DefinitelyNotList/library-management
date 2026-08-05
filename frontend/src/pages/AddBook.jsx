@@ -1,6 +1,6 @@
-import axios from "axios";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axiosInstance from "../utils/axiosInstance";
 
 function AddBook() {
   const navigate = useNavigate();
@@ -31,16 +31,18 @@ function AddBook() {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post("http://localhost:8080/api/books", formData, {
-        headers: {
-          Authorization: `${localStorage.getItem("token")}`,
-        },
-      });
+      const payload = {
+        ...formData,
+        year: formData.year === "" ? null : Number(formData.year),
+        totalCopies: formData.totalCopies === "" ? null : Number(formData.totalCopies),
+        availableCopies: formData.availableCopies === "" ? null : Number(formData.availableCopies),
+      };
+      await axiosInstance.post("/books", payload);
       alert("✅ Book added successfully!");
       navigate("/book-catalog");
     } catch (error) {
       console.error("❌ Error adding book:", error);
-      alert("Failed to add book. Make sure all fields are valid.");
+      alert("Failed to add book. " + (error.response?.data?.message || "Make sure all fields are valid."));
     } finally {
       setLoading(false);
     }
@@ -152,7 +154,7 @@ function AddBook() {
 
                   {/* Available Copies */}
                   <div className="col-md-2">
-                    <label className="form-label">Available Copies11 *</label>
+                    <label className="form-label">Available Copies *</label>
                     <input
                       type="number"
                       name="availableCopies"

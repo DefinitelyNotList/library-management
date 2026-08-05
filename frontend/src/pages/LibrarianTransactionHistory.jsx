@@ -1,19 +1,11 @@
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import axiosInstance from "../utils/axiosInstance";
 
 function LibrarianTransactionHistory() {
   const { bookId } = useParams();
   const [transactions, setTransactions] = useState([]);
   const navigate = useNavigate();
-
-  const getAuthHeader = () => {
-    const token = localStorage.getItem("token");
-    if (!token) return {};
-    return {
-      Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
-    };
-  };
 
   useEffect(() => {
     fetchTransactions();
@@ -21,11 +13,8 @@ function LibrarianTransactionHistory() {
 
   const fetchTransactions = async () => {
     try {
-      const res = await axios.get(
-        `http://localhost:8080/api/transactions/book/${bookId}`,
-        { headers: getAuthHeader() }
-      );
-      setTransactions(res.data);
+      const res = await axiosInstance.get(`/transactions/book/${bookId}`);
+      setTransactions(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error("Error fetching transactions:", err);
     }
@@ -89,7 +78,7 @@ function LibrarianTransactionHistory() {
                   <td>{txn.issueDate}</td>
                   <td>{txn.dueDate}</td>
                   <td>{txn.returnDate || "-"}</td>
-                  <td>{txn.fine > 0 ? `₹${txn.fine}` : "-"}</td>
+                  <td>{txn.fine > 0 ? `${txn.fine.toLocaleString()}đ` : "-"}</td>
                 </tr>
               ))}
             </tbody>

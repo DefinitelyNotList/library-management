@@ -1,7 +1,8 @@
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../utils/axiosInstance";
+import { cleanIsbn, getOpenLibraryCoverUrl } from "../utils/bookUtils";
+import BookCoverImage from "../components/BookCoverImage";
 
 function LibrarianBookManagement() {
   const [books, setBooks] = useState([]);
@@ -52,13 +53,6 @@ function LibrarianBookManagement() {
 
   const navigate = useNavigate();
 
-  const getAuthHeader = () => {
-    const token = localStorage.getItem("token");
-    if (!token) return {};
-    return {
-      Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
-    };
-  };
 
   useEffect(() => {
     fetchBooks();
@@ -83,12 +77,60 @@ function LibrarianBookManagement() {
     if (!historyReaderId) return;
     setHistoryLoading(true);
     try {
+      // 1. Try DB procedure endpoint first
       const res = await axiosInstance.get(`/library/borrows/history?readerId=${historyReaderId}`);
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        setBorrowHistory(res.data);
+        return;
+      }
+
+      // 2. Fallback to JPA transactions endpoint
+      const resTx = await axiosInstance.get(`/borrow/history/${historyReaderId}`);
+      if (Array.isArray(resTx.data) && resTx.data.length > 0) {
+        // map JPA transaction entity fields to match display format
+        const mapped = resTx.data.map(tx => ({
+          BorrowSlipId: tx.id || tx.borrowSlipId,
+          BookTitle: tx.book?.title || tx.title || "—",
+          BorrowDate: tx.borrowDate || tx.issueDate,
+          DueDate: tx.dueDate,
+          ReturnDate: tx.returnDate,
+          SlipStatus: tx.status,
+          BookCondition: tx.bookConditionOnReturn || "Good",
+          FineAmount: tx.fine || tx.penaltyAmount || 0,
+          BorrowDetailId: tx.id
+        }));
+        setBorrowHistory(mapped);
+        return;
+      }
+
       setBorrowHistory(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
-      alert("❌ Không tìm thấy lịch sử mượn sách. Kiểm tra Reader ID.");
+      console.error("Error fetching borrow history:", e);
+      try {
+        const fallbackRes = await axiosInstance.get(`/borrow/history/${historyReaderId}`);
+        if (Array.isArray(fallbackRes.data)) {
+          const mapped = fallbackRes.data.map(tx => ({
+            BorrowSlipId: tx.id,
+            BookTitle: tx.book?.title || "—",
+            BorrowDate: tx.borrowDate || tx.issueDate,
+            DueDate: tx.dueDate,
+            ReturnDate: tx.returnDate,
+            SlipStatus: tx.status,
+            BookCondition: tx.bookConditionOnReturn || "Good",
+            FineAmount: tx.fine || 0,
+            BorrowDetailId: tx.id
+          }));
+          setBorrowHistory(mapped);
+          return;
+        }
+      } catch (err2) {
+        console.error("Fallback failed:", err2);
+      }
+      alert("❌ Không tìm thấy lịch sử mượn sách. Kiểm tra ID độc giả / Member ID.");
       setBorrowHistory([]);
-    } finally { setHistoryLoading(false); }
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   const openReturnDbModal = (detail) => {
@@ -99,10 +141,15 @@ function LibrarianBookManagement() {
 
   const handleReturnDb = async () => {
     if (!selectedDetail) return;
-    const detailId = selectedDetail.BorrowDetailId || selectedDetail.borrowDetailId;
+    const detailId = selectedDetail.BorrowDetailId || selectedDetail.borrowDetailId || selectedDetail.id;
     setReturning(true);
     try {
-      await axiosInstance.post(`/library/borrows/${detailId}/return`, { bookCondition: returnCondition });
+      try {
+        await axiosInstance.post(`/library/borrows/${detailId}/return`, { bookCondition: returnCondition });
+      } catch (errDb) {
+        // If SQL Procedure endpoint fails or doesn't find record, fallback to JPA Transaction endpoint
+        await axiosInstance.post(`/transactions/return/${detailId}?bookCondition=${returnCondition}&damagePenalty=0`);
+      }
       alert("✅ Trả sách thành công!");
       setShowReturnDbModal(false);
       setSelectedDetail(null);
@@ -110,7 +157,8 @@ function LibrarianBookManagement() {
       fetchOverdue();
       fetchBooks();
     } catch (e) {
-      alert("❌ " + (e.response?.data?.message || "Lỗi trả sách."));
+      console.error(e);
+      alert("❌ " + (e.response?.data?.message || e.response?.data || "Lỗi khi trả sách."));
     } finally { setReturning(false); }
   };
 
@@ -124,9 +172,7 @@ function LibrarianBookManagement() {
 
   const fetchMembersList = async () => {
     try {
-      const res = await axios.get("http://localhost:8080/api/users", {
-        headers: getAuthHeader(),
-      });
+      const res = await axiosInstance.get("/users");
       const users = Array.isArray(res.data) ? res.data : [];
       // Members or readers
       const membersOnly = users.filter(
@@ -140,19 +186,14 @@ function LibrarianBookManagement() {
 
   const fetchBooks = async () => {
     try {
-      const booksRes = await axios.get("http://localhost:8080/api/books", {
-        headers: getAuthHeader(),
-      });
+      const booksRes = await axiosInstance.get("/books");
       const booksData = booksRes.data;
 
       // fetch transactions for each book
       const booksWithTxns = await Promise.all(
         booksData.map(async (book) => {
           try {
-            const txnRes = await axios.get(
-              `http://localhost:8080/api/transactions/book/${book.id}`,
-              { headers: getAuthHeader() }
-            );
+            const txnRes = await axiosInstance.get(`/transactions/book/${book.id}`);
             return { ...book, transactions: txnRes.data };
           } catch {
             return { ...book, transactions: [] };
@@ -169,13 +210,8 @@ function LibrarianBookManagement() {
 
   const fetchRequests = async () => {
     try {
-      const res = await axios.get(
-        "http://localhost:8080/api/requests/pending",
-        {
-          headers: getAuthHeader(),
-        }
-      );
-      setRequests(res.data);
+      const res = await axiosInstance.get("/requests/pending");
+      setRequests(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error("Error fetching requests:", err);
     }
@@ -215,26 +251,20 @@ function LibrarianBookManagement() {
   // Add or Update Book
   const handleAddBook = async () => {
     try {
-      await axios.post("http://localhost:8080/api/books", buildPayload(), {
-        headers: getAuthHeader(),
-      });
+      await axiosInstance.post("/books", buildPayload());
       alert("✅ Book added successfully!");
       setShowModal(false);
       resetForm();
       fetchBooks();
     } catch (error) {
       console.error("Error adding book:", error);
-      alert("❌ Failed to add book. Make sure all fields are valid.");
+      alert("❌ " + (error.response?.data?.message || "Failed to add book. Make sure all fields are valid."));
     }
   };
 
   const handleUpdateBook = async () => {
     try {
-      await axios.put(
-        `http://localhost:8080/api/books/${editingBook.id}`,
-        buildPayload(),
-        { headers: getAuthHeader() }
-      );
+      await axiosInstance.put(`/books/${editingBook.id}`, buildPayload());
       alert("✅ Book updated successfully!");
       setShowModal(false);
       resetForm();
@@ -242,21 +272,19 @@ function LibrarianBookManagement() {
       fetchBooks();
     } catch (error) {
       console.error("Error updating book:", error);
-      alert("❌ Failed to update book");
+      alert("❌ " + (error.response?.data?.message || "Failed to update book"));
     }
   };
 
   const handleDeleteBook = async (id) => {
     if (!window.confirm("Are you sure you want to delete this book?")) return;
     try {
-      await axios.delete(`http://localhost:8080/api/books/${id}`, {
-        headers: getAuthHeader(),
-      });
+      await axiosInstance.delete(`/books/${id}`);
       alert("✅ Book deleted successfully!");
       fetchBooks();
     } catch (error) {
       console.error("Error deleting book:", error);
-      alert("❌ Failed to delete book");
+      alert("❌ " + (error.response?.data?.message || "Failed to delete book"));
     }
   };
 
@@ -324,77 +352,59 @@ function LibrarianBookManagement() {
     setShowReturnModal(true);
   };
 
-  const handleReturnBook = () => {
+  const handleReturnBook = async () => {
     if (!selectedTxn) return;
-    axios
-      .post(
-        `http://localhost:8080/api/transactions/return/${selectedTxn.id}?bookCondition=${returnData.bookCondition}&damagePenalty=${returnData.damagePenalty}`,
-        {},
-        { headers: getAuthHeader() }
-      )
-      .then(() => {
-        alert("✅ Book returned successfully!");
-        setShowReturnModal(false);
-        setSelectedTxn(null);
-        fetchBooks();
-      })
-      .catch((err) => {
-        console.error(err);
-        alert("❌ Failed to return book");
-      });
+    try {
+      await axiosInstance.post(
+        `/transactions/return/${selectedTxn.id}?bookCondition=${returnData.bookCondition}&damagePenalty=${returnData.damagePenalty}`
+      );
+      alert("✅ Trả sách thành công!");
+      setShowReturnModal(false);
+      setSelectedTxn(null);
+      fetchBooks();
+    } catch (err) {
+      console.error(err);
+      alert("❌ " + (err.response?.data?.message || "Lỗi khi trả sách."));
+    }
   };
 
   // RENEW BOOK
-  const openRenewModal = (txn) => {
+  const openRenewModal = async (txn) => {
     const extraDays = parseInt(
       prompt("Enter number of extra days for renewal:", "7")
     );
     if (!extraDays || extraDays <= 0) return;
-    axios
-      .post(
-        `http://localhost:8080/api/transactions/renew/${txn.id}?extraDays=${extraDays}`,
-        {},
-        { headers: getAuthHeader() }
-      )
-      .then(() => {
-        alert("✅ Book renewed successfully!");
-        fetchBooks();
-      })
-      .catch((err) => {
-        console.error(err);
-        alert("❌ Failed to renew book");
-      });
+    try {
+      await axiosInstance.post(`/transactions/renew/${txn.id}?extraDays=${extraDays}`);
+      alert("✅ Book renewed successfully!");
+      fetchBooks();
+    } catch (err) {
+      console.error(err);
+      alert("❌ " + (err.response?.data?.message || "Failed to renew book"));
+    }
   };
 
   // Approve / Reject Requests
   const handleApproveRequest = async (requestId) => {
     try {
-      await axios.put(
-        `http://localhost:8080/api/requests/${requestId}/approve`,
-        {},
-        { headers: getAuthHeader() }
-      );
-      alert("✅ Request approved and book issued!");
+      await axiosInstance.put(`/requests/${requestId}/approve`);
+      alert("✅ Đã phê duyệt yêu cầu mượn sách!");
       fetchRequests();
       fetchBooks();
     } catch (err) {
       console.error(err);
-      alert("❌ Failed to approve request");
+      alert("❌ " + (err.response?.data?.message || err.response?.data || "Phê duyệt thất bại."));
     }
   };
 
   const handleRejectRequest = async (requestId) => {
     try {
-      await axios.put(
-        `http://localhost:8080/api/requests/${requestId}/reject`,
-        {},
-        { headers: getAuthHeader() }
-      );
-      alert("❌ Request rejected");
+      await axiosInstance.put(`/requests/${requestId}/reject`);
+      alert("❌ Đã từ chối yêu cầu mượn sách");
       fetchRequests();
     } catch (err) {
       console.error(err);
-      alert("❌ Failed to reject request");
+      alert("❌ " + (err.response?.data?.message || err.response?.data || "Từ chối thất bại."));
     }
   };
 
@@ -595,25 +605,19 @@ function LibrarianBookManagement() {
                             >
                               {/* Book Cover */}
                               <div className="flex-shrink-0 me-3">
-                                {book.isbn ? (
-                                  <img
-                                    src={`https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`}
-                                    alt={book.title}
-                                    className="rounded"
-                                    style={{
-                                      width: "60px",
-                                      height: "90px",
-                                      objectFit: "cover",
-                                    }}
-                                  />
-                                ) : (
-                                  <div
-                                    className="d-flex align-items-center justify-content-center bg-gradient-secondary rounded"
-                                    style={{ width: "60px", height: "90px" }}
-                                  >
-                                    <span className="text-white fs-4">📚</span>
-                                  </div>
-                                )}
+                                {(() => {
+                                  const coverUrl = book.coverImage || getOpenLibraryCoverUrl(book.isbn, "S");
+                                  return coverUrl ? (
+                                    <BookCoverImage coverUrl={coverUrl} title={book.title} height="90px" className="rounded" />
+                                  ) : (
+                                    <div
+                                      className="rounded bg-secondary text-white d-flex align-items-center justify-content-center"
+                                      style={{ width: "60px", height: "90px" }}
+                                    >
+                                      📖
+                                    </div>
+                                  );
+                                })()}
                               </div>
 
                               {/* Book Info */}
@@ -670,17 +674,16 @@ function LibrarianBookManagement() {
                   <div className="card book-card h-100 border-0 shadow-hover rounded-4 overflow-hidden">
                     {/* Book Cover */}
                     <div className="book-cover-container position-relative">
-                      {book.isbn ? (
-                        <img
-                          src={`https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`}
-                          alt={book.title}
-                          className="card-img-top book-cover"
-                        />
-                      ) : (
-                        <div className="book-cover bg-gradient-secondary d-flex align-items-center justify-content-center">
-                          <span className="text-white display-4">📚</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const coverUrl = book.coverImage || getOpenLibraryCoverUrl(book.isbn, "M");
+                        return coverUrl ? (
+                          <BookCoverImage coverUrl={coverUrl} title={book.title} height="220px" className="card-img-top book-cover" />
+                        ) : (
+                          <div className="book-cover bg-gradient-secondary d-flex align-items-center justify-content-center">
+                            <span className="text-white display-4">📚</span>
+                          </div>
+                        );
+                      })()}
 
                       {/* Status Badge */}
                       <div className="position-absolute top-0 end-0 m-3">
@@ -1068,21 +1071,21 @@ function LibrarianBookManagement() {
 
         {/* ===================== RETURN DB MODAL ===================== */}
         {showReturnDbModal && selectedDetail && (
-          <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.55)" }}>
-            <div className="modal-dialog modal-dialog-centered">
+          <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: "rgba(0,0,0,0.55)" }}>
+            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "480px" }}>
               <div className="modal-content border-0 shadow-lg rounded-4">
-                <div className="modal-header border-0 bg-gradient-subtle rounded-top-4">
-                  <h5 className="modal-title fw-bold">🔄 Xác Nhận Trả Sách</h5>
-                  <button className="btn-close" onClick={() => setShowReturnDbModal(false)} />
+                <div className="modal-header border-0 bg-light rounded-top-4 py-3 px-4">
+                  <h5 className="modal-title fw-bold fs-6">🔄 Xác Nhận Trả Sách</h5>
+                  <button type="button" className="btn-close" onClick={() => setShowReturnDbModal(false)} />
                 </div>
                 <div className="modal-body p-4">
-                  <div className="mb-4 p-3 rounded-3 bg-light">
-                    <p className="mb-1"><strong>📖 Sách:</strong> {selectedDetail.BookTitle || selectedDetail.bookTitle || "—"}</p>
-                    <p className="mb-1"><strong>👤 Độc giả:</strong> {selectedDetail.ReaderName || selectedDetail.readerName || "—"}</p>
-                    <p className="mb-0"><strong>📋 Phiếu #:</strong> {selectedDetail.BorrowSlipId || selectedDetail.borrowSlipId}</p>
+                  <div className="mb-3 p-3 rounded-3 bg-light border">
+                    <p className="mb-1 text-dark"><strong>📖 Sách:</strong> {selectedDetail.BookTitle || selectedDetail.bookTitle || "—"}</p>
+                    <p className="mb-1 text-dark"><strong>👤 Độc giả:</strong> {selectedDetail.ReaderName || selectedDetail.readerName || "—"}</p>
+                    <p className="mb-0 text-dark"><strong>📋 Phiếu #:</strong> #{selectedDetail.BorrowSlipId || selectedDetail.borrowSlipId}</p>
                   </div>
                   <div className="mb-3">
-                    <label className="form-label fw-semibold">Tình trạng sách</label>
+                    <label className="form-label fw-semibold">Tình trạng sách khi trả</label>
                     <select
                       className="form-select rounded-3"
                       value={returnCondition}
@@ -1093,15 +1096,16 @@ function LibrarianBookManagement() {
                       <option value="Lost">❌ Mất sách (Lost)</option>
                     </select>
                   </div>
-                  <div className="alert alert-info rounded-3 small">
+                  <div className="alert alert-info rounded-3 small mb-0">
                     💡 Tiền phạt quá hạn = số ngày trễ × 5.000 VND (tính tự động)
                   </div>
                 </div>
-                <div className="modal-footer border-0 pt-0">
-                  <button className="btn btn-light rounded-pill px-4" onClick={() => setShowReturnDbModal(false)}>
+                <div className="modal-footer border-0 p-3 bg-light rounded-bottom-4">
+                  <button type="button" className="btn btn-outline-secondary rounded-pill px-4" onClick={() => setShowReturnDbModal(false)}>
                     Hủy
                   </button>
                   <button
+                    type="button"
                     className="btn btn-success rounded-pill px-4 fw-semibold"
                     onClick={handleReturnDb}
                     disabled={returning}
@@ -1251,28 +1255,26 @@ function LibrarianBookManagement() {
 
         {/* Return Modal */}
         {showReturnModal && selectedTxn && (
-          <div
-            className="modal show d-block"
-            style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
+          <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "480px" }}>
               <div className="modal-content border-0 shadow-lg rounded-4">
-                <div className="modal-header border-0 pb-0">
-                  <h5 className="modal-title fw-bold">
+                <div className="modal-header border-0 bg-light rounded-top-4 py-3 px-4">
+                  <h5 className="modal-title fw-bold fs-6">
                     🔄 Return Book (Transaction #{selectedTxn.id})
                   </h5>
                   <button
+                    type="button"
                     className="btn-close"
                     onClick={() => setShowReturnModal(false)}
                   ></button>
                 </div>
                 <div className="modal-body p-4">
-                  <div className="mb-4">
+                  <div className="mb-3">
                     <label className="form-label fw-semibold">
                       📋 Book Condition
                     </label>
                     <select
-                      className="form-select form-select-lg"
+                      className="form-select rounded-3"
                       value={returnData.bookCondition}
                       onChange={(e) =>
                         setReturnData({
@@ -1287,11 +1289,11 @@ function LibrarianBookManagement() {
                   </div>
 
                   {returnData.bookCondition === "DAMAGED" && (
-                    <div className="mb-4">
+                    <div className="mb-3">
                       <label className="form-label fw-semibold text-warning">
                         ⚠️ Damage Penalty Amount
                       </label>
-                      <div className="input-group input-group-lg">
+                      <div className="input-group">
                         <span className="input-group-text">$</span>
                         <input
                           type="number"
@@ -1309,15 +1311,17 @@ function LibrarianBookManagement() {
                     </div>
                   )}
                 </div>
-                <div className="modal-footer border-0 pt-0">
+                <div className="modal-footer border-0 p-3 bg-light rounded-bottom-4">
                   <button
-                    className="btn btn-secondary btn-lg"
+                    type="button"
+                    className="btn btn-outline-secondary rounded-pill px-4"
                     onClick={() => setShowReturnModal(false)}
                   >
                     Cancel
                   </button>
                   <button
-                    className="btn btn-success btn-lg fw-semibold"
+                    type="button"
+                    className="btn btn-success rounded-pill px-4 fw-semibold"
                     onClick={handleReturnBook}
                   >
                     ✅ Process Return

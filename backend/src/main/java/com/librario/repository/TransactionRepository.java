@@ -24,6 +24,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     List<Transaction> findByBookId(Long bookId);
 
+    // Check if member already has an active borrow for this book
+    boolean existsByMemberIdAndBookIdAndStatus(Long memberId, Long bookId, String status);
+
     // Simple query: get borrowed transactions due on `dueDate`
 
     //  Get transactions that are due on a given date and still BORROWED
