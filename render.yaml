@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: librario-backend
+    env: docker
+    branch: main
+    dockerfilePath: backend/Dockerfile
+    buildCommand: mvn -B -DskipTests package
+    startCommand: java $JAVA_OPTS -Dserver.port=${PORT:-8080} -jar /app/app.jar
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+      - key: SPRING_DATASOURCE_USERNAME
+      - key: SPRING_DATASOURCE_PASSWORD
+      - key: app.jwt.secret

@@ -1,0 +1,17 @@
+# Ignore build artifacts and local files
+target/
+*.log
+*.tmp
+*.swp
+.mvn/
+.mvnw
+.idea/
+.vscode/
+.git
+.DS_Store
+
+# Exclude source jars and local IDE files
+*.iml
+
+# Keep Docker context small
+*/target/
