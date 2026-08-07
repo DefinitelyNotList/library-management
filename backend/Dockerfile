@@ -22,4 +22,4 @@ ENV JAVA_OPTS=""
 # Render will provide the PORT env var; fallback to 8080 if not set
 EXPOSE 8080
 
-CMD ["sh", "-c", "java $JAVA_OPTS -Dserver.port=${PORT:-8080} -jar /app.jar"]
+CMD ["sh", "-c", "java $JAVA_OPTS -Dserver.port=${PORT:-8080} -jar /app/app.jar"]
