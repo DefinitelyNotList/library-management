@@ -3,8 +3,7 @@ FROM maven:3.9.4-eclipse-temurin-17 AS builder
 WORKDIR /build
 
 # Copy only what we need for a Maven build
-COPY pom.xml mvnw ./
-COPY .mvn .mvn
+COPY pom.xml ./
 COPY src src
 
 # Package the application (skip tests in CI by default)
