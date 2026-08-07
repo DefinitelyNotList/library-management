@@ -55,7 +55,4 @@ public class MemberController {
     public Member addMember(@RequestBody UserDTO userDTO, @PathVariable Long planId) {
         return memberService.addMember(userDTO, planId);
     }
-
-
-
 }

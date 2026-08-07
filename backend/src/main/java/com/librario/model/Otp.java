@@ -23,4 +23,11 @@ public class Otp {
     private String otp;
 
     private LocalDateTime createdAt;
+
+    private LocalDateTime expiresAt;
+
+    /** Kiểm tra OTP đã hết hạn chưa */
+    public boolean isExpired() {
+        return expiresAt != null && LocalDateTime.now().isAfter(expiresAt);
+    }
 }

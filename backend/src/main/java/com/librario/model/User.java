@@ -54,7 +54,12 @@ public class User {
     @Column(name = "CreatedAt")
     private LocalDateTime createdAt;
 
-    @Transient
+    @Column(name = "UpdatedAt")
     private LocalDateTime updatedAt;
+
+    @PreUpdate
+    public void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }
 

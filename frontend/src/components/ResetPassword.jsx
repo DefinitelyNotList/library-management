@@ -1,4 +1,4 @@
-import axios from "axios";
+import axiosInstance from "../utils/axiosInstance";
 import { useState } from "react";
 import bgImage from "../assets/background.jpg";
 
@@ -12,14 +12,11 @@ function ResetPassword() {
     e.preventDefault();
 
     try {
-      const response = await axios.post(
-        "http://localhost:8080/api/users/reset-password",
-        {
+      const response = await axiosInstance.post("/users/reset-password", {
           email,
           otp,
           newPassword,
-        }
-      );
+        });
 
       setMessage(response.data);
       setEmail("");

@@ -3,6 +3,7 @@ package com.librario.controller;
 import com.librario.model.BookRequest;
 import com.librario.service.BookRequestService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -39,14 +40,14 @@ public class BookRequestController {
 
     // 🔹 Librarian: Approve request
     @PutMapping("/{requestId}/approve")
-    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LIBRARIAN','ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN','ADMIN')")
     public ResponseEntity<BookRequest> approveRequest(@PathVariable Long requestId) {
         return ResponseEntity.ok(bookRequestService.approveRequest(requestId));
     }
 
     // 🔹 Librarian: Reject request
     @PutMapping("/{requestId}/reject")
-    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LIBRARIAN','ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN','ADMIN')")
     public ResponseEntity<BookRequest> rejectRequest(@PathVariable Long requestId) {
         return ResponseEntity.ok(bookRequestService.rejectRequest(requestId));
     }

@@ -1,4 +1,4 @@
-import axios from "axios";
+import axiosInstance from "../utils/axiosInstance";
 import { useState } from "react";
 import bgImage from "../assets/background.jpg";
 
@@ -12,14 +12,11 @@ function Register() {
     e.preventDefault();
 
     try {
-      const response = await axios.post(
-        "http://localhost:8080/api/users/register",
-        {
+      const response = await axiosInstance.post("/users/register", {
           name,
           email,
           password,
-        }
-      );
+        });
 
       setMessage(response.data);
       setName("");

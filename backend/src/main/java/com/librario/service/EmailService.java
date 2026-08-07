@@ -4,6 +4,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -17,7 +18,9 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
 
-    // Inject JavaMailSender
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
+
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
     }
@@ -53,8 +56,6 @@ public class EmailService {
 
     //  Welcome email for normal users (Members/Admins)
     public void sendWelcomeEmailForUser(String to, String name) {
-        String loginUrl = "http://localhost:5173";
-
         String htmlContent = """
                 <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                     <h2 style="color: #2c3e50;">Welcome to Librario, %s!</h2>
@@ -66,14 +67,14 @@ public class EmailService {
                         Login Now
                     </a>
                 </div>
-                """.formatted(name, loginUrl);
+                """.formatted(name, frontendUrl);
 
         sendHtmlEmail(to, "Welcome to Librario!", htmlContent);
     }
 
     //  Welcome email for Librarians added by Admin
     public void sendWelcomeEmailForLibrarian(String to, String name) {
-        String resetPasswordUrl = "http://localhost:5173/forgot-password";
+        String resetPasswordUrl = frontendUrl + "/forgot-password";
 
         String htmlContent = """
                 <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">

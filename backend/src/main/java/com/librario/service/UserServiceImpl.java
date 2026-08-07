@@ -145,11 +145,12 @@ public class UserServiceImpl implements UserService {
         // Generate 6-digit OTP
         String otp = String.valueOf((int)(Math.random() * 900000) + 100000);
 
-        // Save OTP in DB
+        // Save OTP in DB (expires after 15 minutes)
         Otp otpRecord = new Otp();
         otpRecord.setEmail(email);
         otpRecord.setOtp(otp);
         otpRecord.setCreatedAt(LocalDateTime.now());
+        otpRecord.setExpiresAt(LocalDateTime.now().plusMinutes(15));
         otpRepository.save(otpRecord);
 
         // Send OTP via email
@@ -176,6 +177,11 @@ public class UserServiceImpl implements UserService {
 
         Otp otpRecord = otpRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("OTP not found"));
+
+        if (otpRecord.isExpired()) {
+            otpRepository.delete(otpRecord);
+            return "OTP đã hết hạn. Vui lòng yêu cầu OTP mới.";
+        }
 
         if (!otpRecord.getOtp().equals(otp)) {
             return "Invalid OTP";

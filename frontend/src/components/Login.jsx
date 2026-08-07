@@ -1,6 +1,6 @@
-import axios from "axios";
+import axiosInstance from "../utils/axiosInstance";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -13,10 +13,7 @@ function Login() {
     e.preventDefault();
 
     try {
-      const response = await axios.post(
-        "http://localhost:8080/api/users/login",
-        { email, password }
-      );
+      const response = await axiosInstance.post("/users/login", { email, password });
 
       const { token, username, role, memberId } = response.data;
 
@@ -25,30 +22,28 @@ function Login() {
       localStorage.setItem("username", username);
       localStorage.setItem("role", role);
 
-      // ✅ Store memberId only for MEMBER role
+      // Store memberId only for MEMBER role
       if (role === "MEMBER") {
         localStorage.setItem("memberId", memberId);
       } else {
-        localStorage.removeItem("memberId"); // ensure no leftover
+        localStorage.removeItem("memberId");
       }
 
-      if (!memberId) {
-        console.warn(
-          "⚠️ Member ID not found in localStorage. Are you logged in as MEMBER?"
-        );
-      }
-
-      alert(`Login successful!\nWelcome, ${username}!\nRole: ${role}`);
-      setMessage("Login successful!");
+      setMessage(`Đăng nhập thành công! Chào mừng, ${username}!`);
 
       // Redirect based on role
-      if (role === "ADMIN") navigate("/admin-dashboard");
-      else if (role === "LIBRARIAN") navigate("/librarian-dashboard");
-      else if (role === "MEMBER") navigate("/member-dashboard");
-      else setMessage("Unknown role.");
+      setTimeout(() => {
+        if (role === "ADMIN") navigate("/admin-dashboard");
+        else if (role === "LIBRARIAN") navigate("/librarian-dashboard");
+        else if (role === "MEMBER") navigate("/member-dashboard");
+        else setMessage("Vai trò không xác định.");
+      }, 800);
     } catch (err) {
-      const errMsg = err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response?.data : null) || "Server error";
-      setMessage("Login failed: " + errMsg);
+      const errMsg =
+        err.response?.data?.message ||
+        (typeof err.response?.data === "string" ? err.response?.data : null) ||
+        "Lỗi máy chủ";
+      setMessage("Đăng nhập thất bại: " + errMsg);
     }
   };
 
@@ -409,8 +404,8 @@ function Login() {
 
           {/* Footer Links */}
           <div className="text-center">
-            <a
-              href="/forgot-password"
+            <Link
+              to="/forgot-password"
               className="text-light d-block"
               style={{
                 textDecoration: "none",
@@ -429,14 +424,14 @@ function Login() {
               }}
             >
               Forgot Password?
-            </a>
+            </Link>
             <span
               className="text-light"
               style={{ fontSize: "0.9rem", opacity: 0.9 }}
             >
               New user?{" "}
-              <a
-                href="/register"
+              <Link
+                to="/register"
                 className="text-light"
                 style={{
                   textDecoration: "none",
@@ -453,7 +448,7 @@ function Login() {
                 }}
               >
                 Register here
-              </a>
+              </Link>
             </span>
           </div>
         </form>

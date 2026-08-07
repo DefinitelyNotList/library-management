@@ -1,4 +1,4 @@
-import axios from "axios";
+import axiosInstance from "../utils/axiosInstance";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import bgImage from "../assets/background.jpg";
@@ -15,8 +15,8 @@ function ForgotPassword() {
     setMessage("");
 
     try {
-      const response = await axios.post(
-        "http://localhost:8080/api/users/forgot-password",
+      const response = await axiosInstance.post(
+        "/users/forgot-password",
         null,
         { params: { email } }
       );

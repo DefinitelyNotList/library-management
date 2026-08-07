@@ -1,53 +1,49 @@
 package com.librario.controller;
 
-import com.librario.dto.*;
-import com.librario.model.Role;
+import com.librario.dto.ChangePasswordDTO;
+import com.librario.dto.LoginDTO;
+import com.librario.dto.LoginResponseDTO;
+import com.librario.dto.ResetPasswordDTO;
+import com.librario.dto.UserDTO;
 import com.librario.model.TokenBlacklist;
 import com.librario.repository.TokenBlacklistRepository;
 import com.librario.repository.UserRepository;
 import com.librario.service.UserService;
 import com.librario.util.JwtUtil;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
+@RequiredArgsConstructor
 public class UserController {
 
-    @Autowired
-    private UserService userService;
-
-    @Autowired
-    private JwtUtil jwtUtil;
-
-    @Autowired
-    private TokenBlacklistRepository tokenBlacklistRepository;
-
-    @Autowired
-    private UserRepository userRepository;
-
+    private final UserService userService;
+    private final JwtUtil jwtUtil;
+    private final TokenBlacklistRepository tokenBlacklistRepository;
+    private final UserRepository userRepository;
 
     @PostMapping("/register")
     public ResponseEntity<String> registerUser(@RequestBody UserDTO userDTO) {
-        String response = userService.registerUser(userDTO);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(userService.registerUser(userDTO));
     }
-
-//    @PostMapping("/login")
-//    public ResponseEntity<?> loginUser(@RequestBody LoginDTO loginDTO) {
-//        LoginResponseDTO response = userService.loginUser(loginDTO);
-//        return ResponseEntity.ok(response);
-//    }
 
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginDTO loginDTO) {
-        // Authenticate user
         LoginResponseDTO response = userService.loginUser(loginDTO);
-
 
         if ("MEMBER".equals(response.getRole()) || "READER".equals(response.getRole())) {
             Long memberId = userService.getMemberIdByUserEmail(loginDTO.getEmail());
@@ -57,50 +53,41 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-
     @PostMapping("/add-librarian")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> addLibrarian(@RequestBody UserDTO userDTO) {
-        String response = userService.addLibrarian(userDTO);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(userService.addLibrarian(userDTO));
     }
 
     @PostMapping("/forgot-password")
     public ResponseEntity<String> forgotPassword(@RequestParam String email) {
-        String response = userService.forgotPassword(email);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(userService.forgotPassword(email));
     }
 
     @PostMapping("/reset-password")
     public ResponseEntity<String> resetPassword(@RequestBody ResetPasswordDTO resetDTO) {
-        String response = userService.resetPassword(resetDTO);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(userService.resetPassword(resetDTO));
     }
 
     @PutMapping("/change-password")
     public ResponseEntity<String> changePassword(@RequestBody ChangePasswordDTO dto,
                                                  @RequestHeader("Authorization") String token) {
-        String email = jwtUtil.extractUsername(token.substring(7)); // Remove "Bearer "
-        String response = userService.changePassword(email, dto);
-        return ResponseEntity.ok(response);
+        String email = jwtUtil.extractUsername(token.substring(7));
+        return ResponseEntity.ok(userService.changePassword(email, dto));
     }
 
     @DeleteMapping("/logout")
     public ResponseEntity<String> logout(@RequestHeader("Authorization") String token) {
-        String jwt = token.substring(7); // Remove "Bearer "
-        tokenBlacklistRepository.save(new TokenBlacklist(jwt));
+        tokenBlacklistRepository.save(new TokenBlacklist(token.substring(7)));
         return ResponseEntity.ok("Logged out successfully");
     }
 
-    // Get all users for Membership Management
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'LIBRARIAN')")
     public ResponseEntity<List<UserDTO>> getAllUsers() {
-        List<UserDTO> users = userService.getAllUsers();
-        return ResponseEntity.ok(users);
+        return ResponseEntity.ok(userService.getAllUsers());
     }
 
-    // New count endpoint
     @GetMapping("/librarians/count")
     @PreAuthorize("hasRole('ADMIN')")
     public long countLibrarians() {
@@ -116,15 +103,12 @@ public class UserController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> updateUser(@PathVariable Long id, @RequestBody UserDTO userDTO) {
-        String response = userService.updateUser(id, userDTO);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(userService.updateUser(id, userDTO));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> deleteUser(@PathVariable Long id) {
-        String response = userService.deleteUser(id);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(userService.deleteUser(id));
     }
-
 }
