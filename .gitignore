@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+frontend/dist/
+frontend/build/
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# Java / Maven
+*.class
+*.log
+*.jar
+*.war
+*.ear
+*.zip
+*.tar
+*.tar.gz
+
+# IDE / editor
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.local
+.env.*
+*.env
+application.properties
+application-*.properties
+!application-example.properties
+
+# Database local files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs and temp files
+logs/
+tmp/
+temp/
+*.tmp
+
+# Test reports
+**/surefire-reports/
+**/test-output/
+
+# Frontend cache
+frontend/.vite/
+frontend/.eslintcache
+frontend/.parcel-cache/
+
+# Backend uploads / local data
+backend/uploads/
+backend/files/
