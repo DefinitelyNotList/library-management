@@ -6,7 +6,10 @@
 - **Tools & Integrations:** Postman, Git/GitHub, IntelliJ IDEA, VS Code
 
 ---
+Demo(pw=123456)
+mail: reader111@gmail.com/demolibrarian@gmai.com/demoadmin@gmail.com
 
+---
 ## Features
 <details>
 <summary><strong>Backend Features</strong></summary>
