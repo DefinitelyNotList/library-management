@@ -1,5 +1,5 @@
-# Build stage: Maven with Temurin JDK 24
-FROM maven:3.9.4-eclipse-temurin-24 AS builder
+# Build stage
+FROM maven:3.9.4-eclipse-temurin-17 AS builder
 WORKDIR /build
 
 # Copy only what we need for a Maven build
@@ -10,8 +10,8 @@ COPY src src
 # Package the application (skip tests in CI by default)
 RUN mvn -B -DskipTests package
 
-# Run stage: Temurin JRE 24
-FROM eclipse-temurin:24-jre-jammy
+# Run stage
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
 # Copy the built jar from the builder stage
