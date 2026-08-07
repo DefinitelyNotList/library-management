@@ -62,7 +62,7 @@ public class LibrarySchemaService {
         if (result.isEmpty()) {
             throw new IllegalArgumentException("Không tìm thấy sách có mã " + id);
         }
-        return result.getFirst();
+        return result.get(0);
     }
 
     @Transactional
@@ -319,7 +319,7 @@ public class LibrarySchemaService {
                 (rs, i) -> rs.getInt(1),
                 name.trim()
         );
-        if (!ids.isEmpty()) return ids.getFirst();
+        if (!ids.isEmpty()) return ids.get(0);
 
         jdbc.update("INSERT INTO " + table + " (" + nameColumn + ") VALUES (?)", name.trim());
         return jdbc.queryForObject("SELECT CAST(SCOPE_IDENTITY() AS INT)", Integer.class);
