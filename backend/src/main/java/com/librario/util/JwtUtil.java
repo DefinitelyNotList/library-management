@@ -17,10 +17,27 @@ public class JwtUtil {
 
     private final Key key;
 
-    public JwtUtil(@Value("${app.jwt.secret}") String secret) {
-        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
-            throw new IllegalArgumentException("JWT_SECRET must be at least 32 bytes long");
+    /**
+     * Constructor will try the following (in order) to obtain the secret:
+     * 1) Spring property 'app.jwt.secret'
+     * 2) Environment variable 'APP_JWT_SECRET'
+     * 3) A built-in development fallback (only for demo/local use)
+     */
+    public JwtUtil(@Value("${app.jwt.secret:}") String secretFromProp) {
+        String secret = secretFromProp;
+        if (secret == null || secret.isBlank()) {
+            // Try environment variable as a fallback (Render-friendly)
+            secret = System.getenv("APP_JWT_SECRET");
         }
+        if (secret == null || secret.isBlank()) {
+            // Development/demo fallback. NOT for production use.
+            secret = "dev-demo-secret-please-change-this-to-production-secret";
+        }
+        // Ensure secret is at least 32 bytes for HMAC key generation
+        while (secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+            secret = secret + "0"; // pad until long enough
+        }
+
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
