@@ -13,5 +13,6 @@ services:
       - key: SPRING_DATASOURCE_USERNAME
       - key: SPRING_DATASOURCE_PASSWORD
       - key: app.jwt.secret
+      - key: APP_FRONTEND_URL
       - key: JAVA_OPTS
         value: -Xms128m -Xmx384m -XX:MaxRAMPercentage=80 -XX:+UseG1GC
