@@ -44,35 +44,25 @@ public class DataSourceConfig {
 
         Map<String, String> values = parseNameValuePairs(normalized);
         String server = getValue(values, "server");
-        String database = getValue(values, "database");
-
         if (server.isEmpty()) {
-            throw new IllegalArgumentException("Invalid SQL Server URL: missing Server=");
+            server = getValue(values, "host");
         }
+        String database = getValue(values, "database");
         if (database.isEmpty()) {
-            throw new IllegalArgumentException("Invalid SQL Server URL: missing Database=");
+            database = getValue(values, "databaseName");
+        }
+
+        if (server.isEmpty() || database.isEmpty()) {
+            throw new IllegalArgumentException("Invalid datasource URL: missing server/host or database.");
         }
 
         String hostPort = server;
         if (!hostPort.contains(":")) {
-            hostPort = hostPort + ":1433";
+            hostPort = hostPort + ":3306";
         }
 
-        StringBuilder jdbcUrl = new StringBuilder("jdbc:sqlserver://").append(hostPort)
-                .append(";databaseName=").append(database);
-
-        values.remove("server");
-        values.remove("database");
-
-        for (Map.Entry<String, String> entry : values.entrySet()) {
-            String key = entry.getKey();
-            if (key.equalsIgnoreCase("user id") || key.equalsIgnoreCase("password")) {
-                continue;
-            }
-            jdbcUrl.append(";").append(entry.getKey()).append("=").append(entry.getValue());
-        }
-
-        return jdbcUrl.toString();
+        return "jdbc:mysql://" + hostPort + "/" + database +
+                "?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8";
     }
 
     private Map<String, String> parseNameValuePairs(String raw) {

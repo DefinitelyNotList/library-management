@@ -34,6 +34,7 @@ com\librario\service\BorrowBookService.class
 com\librario\repository\PasswordResetTokenRepository.class
 com\librario\model\Book.class
 com\librario\service\impl\MemberServiceImpl.class
+com\librario\config\DataSourceConfig.class
 com\librario\dto\UserDTO.class
 com\librario\service\UserService.class
 com\librario\controller\BookController.class

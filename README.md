@@ -1,7 +1,7 @@
 # Library Management System
 
 ## Tech Stack
-- **Backend:** Java, Spring Boot, SQL Server, REST APIs, JWT Authentication  
+- **Backend:** Java, Spring Boot, MySQL, REST APIs, JWT Authentication  
 - **Frontend:** React.js, Vite, HTML, CSS, JavaScript  
 - **Tools & Integrations:** Postman, Git/GitHub, IntelliJ IDEA, VS Code
 

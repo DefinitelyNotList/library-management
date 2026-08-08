@@ -44,7 +44,7 @@ public class OverdueReminderService {
                 JOIN Users        u  ON u.UserId  = bs.ReaderId
                 WHERE bd.ReturnDate IS NULL
                   AND bs.Status = 'Borrowing'
-                  AND CAST(bs.DueDate AS DATE) = CAST(DATEADD(DAY, 2, GETDATE()) AS DATE)
+                  AND DATE(bs.DueDate) = DATE_ADD(CURDATE(), INTERVAL 2 DAY)
                 """);
 
         for (Map<String, Object> row : dueSoon) {

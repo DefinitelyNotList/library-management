@@ -81,7 +81,7 @@ public class LibrarySchemaService {
                 r.availableCopies(),
                 status(r)
         );
-        int newId = jdbc.queryForObject("SELECT CAST(SCOPE_IDENTITY() AS INT)", Integer.class);
+        int newId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Integer.class);
         return book(newId);
     }
 
@@ -168,7 +168,7 @@ public class LibrarySchemaService {
 
         for (Integer bookId : ids) {
             Integer available = jdbc.queryForObject(
-                    "SELECT AvailableQuantity FROM Books WITH (UPDLOCK, ROWLOCK) WHERE BookId = ?",
+                    "SELECT AvailableQuantity FROM Books WHERE BookId = ? FOR UPDATE",
                     Integer.class, bookId);
             if (available == null || available <= 0) {
                 throw new IllegalStateException("Sách mã " + bookId + " không còn sẵn.");
@@ -182,7 +182,7 @@ public class LibrarySchemaService {
                 "INSERT INTO BorrowSlips (ReaderId, LibrarianId, BorrowDate, DueDate, Status) VALUES (?, ?, ?, ?, 'Borrowing')",
                 r.readerId(), r.librarianId(), now, due
         );
-        int slip = jdbc.queryForObject("SELECT CAST(SCOPE_IDENTITY() AS INT)", Integer.class);
+        int slip = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Integer.class);
 
         for (Integer bookId : ids) {
             jdbc.update("INSERT INTO BorrowDetails (BorrowSlipId, BookId) VALUES (?, ?)", slip, bookId);
@@ -256,20 +256,20 @@ public class LibrarySchemaService {
     }
 
     public Map<String, Object> updateOverdue() {
-        jdbc.update("UPDATE BorrowSlips SET Status = 'Overdue' WHERE Status = 'Borrowing' AND DueDate < GETDATE()");
+        jdbc.update("UPDATE BorrowSlips SET Status = 'Overdue' WHERE Status = 'Borrowing' AND DueDate < NOW()");
         return statistics();
     }
 
     public List<Map<String, Object>> topBooks() {
         return jdbc.queryForList(
-                "SELECT TOP 10 bk.BookId, bk.Title, a.AuthorName, c.CategoryName, " +
+                "SELECT bk.BookId, bk.Title, a.AuthorName, c.CategoryName, " +
                 "COUNT(bd.BorrowDetailId) AS TimesBorrowed " +
                 "FROM Books bk " +
                 "LEFT JOIN BorrowDetails bd ON bd.BookId = bk.BookId " +
                 "LEFT JOIN Authors       a  ON a.AuthorId = bk.AuthorId " +
                 "LEFT JOIN Categories    c  ON c.CategoryId = bk.CategoryId " +
                 "GROUP BY bk.BookId, bk.Title, a.AuthorName, c.CategoryName " +
-                "ORDER BY TimesBorrowed DESC"
+                "ORDER BY TimesBorrowed DESC LIMIT 10"
         );
     }
 
@@ -322,7 +322,7 @@ public class LibrarySchemaService {
         if (!ids.isEmpty()) return ids.get(0);
 
         jdbc.update("INSERT INTO " + table + " (" + nameColumn + ") VALUES (?)", name.trim());
-        return jdbc.queryForObject("SELECT CAST(SCOPE_IDENTITY() AS INT)", Integer.class);
+        return jdbc.queryForObject("SELECT LAST_INSERT_ID()", Integer.class);
     }
 
     private boolean validUser(int id, String role) {
