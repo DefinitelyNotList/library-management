@@ -1,5 +1,6 @@
 D:\TTTN\LibraryManagement\LibraryManagement\backend\src\main\java\com\librario\config\DatabaseCleanupRunner.java
 D:\TTTN\LibraryManagement\LibraryManagement\backend\src\main\java\com\librario\config\JwtFilter.java
+D:\TTTN\LibraryManagement\LibraryManagement\backend\src\main\java\com\librario\config\MailConfig.java
 D:\TTTN\LibraryManagement\LibraryManagement\backend\src\main\java\com\librario\config\SecurityConfig.java
 D:\TTTN\LibraryManagement\LibraryManagement\backend\src\main\java\com\librario\controller\ApiExceptionHandler.java
 D:\TTTN\LibraryManagement\LibraryManagement\backend\src\main\java\com\librario\controller\BookController.java

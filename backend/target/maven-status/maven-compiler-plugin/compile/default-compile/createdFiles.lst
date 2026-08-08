@@ -24,6 +24,7 @@ com\librario\model\User$UserBuilder.class
 com\librario\repository\UserRepository.class
 com\librario\repository\TransactionRepository.class
 com\librario\service\CustomUserDetailsService.class
+com\librario\config\MailConfig.class
 com\librario\repository\BookRepository.class
 com\librario\service\impl\BookServiceImpl.class
 com\librario\model\Otp.class
