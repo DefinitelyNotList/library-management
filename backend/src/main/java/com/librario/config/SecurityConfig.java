@@ -36,7 +36,10 @@ public class SecurityConfig {
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             var corsConfig = new org.springframework.web.cors.CorsConfiguration();
-                            corsConfig.setAllowedOrigins(List.of("http://localhost:5173"));
+                            // Read allowed origins from env var APP_FRONTEND_URL (comma-separated)
+                            String frontendUrls = System.getenv().getOrDefault("APP_FRONTEND_URL", "http://localhost:5173,https://library-management-1-c185.vercel.app");
+                            List<String> origins = List.of(frontendUrls.split(","));
+                            corsConfig.setAllowedOrigins(origins);
                             corsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                             corsConfig.setAllowedHeaders(List.of("*"));
                             corsConfig.setAllowCredentials(true);
