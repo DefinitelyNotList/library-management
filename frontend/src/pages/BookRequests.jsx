@@ -13,25 +13,11 @@ function BookRequests() {
     const fetchRequests = async () => {
       try {
         setLoading(true);
-        let memberId = localStorage.getItem("memberId");
-
-        if (!memberId) {
-          const username = localStorage.getItem("username");
-          if (username) {
-            try {
-              const usersRes = await axiosInstance.get("/users");
-              const me = usersRes.data.find(
-                (u) => u.name === username || u.email === username
-              );
-              if (me) memberId = me.id;
-            } catch (e) {
-              console.warn("Failed member lookup:", e);
-            }
-          }
-        }
+        let memberId = localStorage.getItem("memberId") || localStorage.getItem("userId");
 
         if (!memberId) {
           setRequests([]);
+          setLoading(false);
           return;
         }
 
