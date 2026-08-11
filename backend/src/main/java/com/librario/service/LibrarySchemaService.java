@@ -284,14 +284,15 @@ public class LibrarySchemaService {
     public List<Map<String, Object>> history(int readerId) {
         // Try by member.id first, then by user.id via join
         String sql =
-            "SELECT t.id AS transactionId, " +
+            "SELECT t.id AS transactionId, t.id AS borrowSlipId, " +
             "       b.BookId, b.Title AS bookTitle, " +
             "       a.AuthorName, " +
-            "       t.issue_date AS issueDate, " +
+            "       t.issue_date AS issueDate, t.issue_date AS borrowDate, " +
             "       t.due_date AS dueDate, " +
             "       t.return_date AS returnDate, " +
-            "       t.status, " +
-            "       t.fine, " +
+            "       t.status, t.status AS slipStatus, " +
+            "       t.fine, t.fine AS fineAmount, " +
+            "       t.book_condition_on_return AS bookCondition, " +
             "       t.penalty_status AS penaltyStatus " +
             "FROM transactions t " +
             "JOIN members m ON m.id = t.member_id " +
@@ -307,12 +308,16 @@ public class LibrarySchemaService {
      */
     public List<Map<String, Object>> overdue() {
         String sql =
-            "SELECT t.id AS transactionId, " +
-            "       u.UserId, u.FullName AS memberName, u.Email AS memberEmail, " +
-            "       b.BookId, b.Title AS bookTitle, " +
-            "       t.issue_date AS issueDate, " +
-            "       t.due_date AS dueDate, " +
-            "       DATEDIFF(CURDATE(), t.due_date) AS overdueDays " +
+            "SELECT t.id AS transactionId, t.id AS borrowSlipId, t.id AS BorrowSlipId, " +
+            "       u.UserId, u.FullName AS memberName, u.FullName AS readerName, u.FullName AS ReaderName, " +
+            "       u.Email AS memberEmail, u.Email AS email, u.Email AS Email, " +
+            "       u.PhoneNumber AS phoneNumber, u.PhoneNumber AS PhoneNumber, " +
+            "       b.BookId, b.Title AS bookTitle, b.Title AS BookTitle, " +
+            "       t.issue_date AS issueDate, t.issue_date AS borrowDate, t.issue_date AS BorrowDate, " +
+            "       t.due_date AS dueDate, t.due_date AS DueDate, " +
+            "       DATEDIFF(CURDATE(), t.due_date) AS overdueDays, DATEDIFF(CURDATE(), t.due_date) AS OverdueDays, " +
+            "       (GREATEST(DATEDIFF(CURDATE(), t.due_date), 0) * 5000) AS estimatedFine, " +
+            "       (GREATEST(DATEDIFF(CURDATE(), t.due_date), 0) * 5000) AS EstimatedFine " +
             "FROM transactions t " +
             "JOIN members m ON m.id = t.member_id " +
             "JOIN Users u ON u.UserId = m.user_id " +
@@ -329,12 +334,20 @@ public class LibrarySchemaService {
         String sql =
             "SELECT " +
             "  (SELECT COUNT(*) FROM Books) AS totalBooks, " +
-            "  (SELECT SUM(AvailableQuantity) FROM Books) AS availableBooks, " +
+            "  (SELECT COUNT(*) FROM Books) AS TotalBooks, " +
+            "  (SELECT COALESCE(SUM(AvailableQuantity), 0) FROM Books) AS availableBooks, " +
+            "  (SELECT COALESCE(SUM(AvailableQuantity), 0) FROM Books) AS AvailableBooks, " +
             "  (SELECT COUNT(*) FROM members WHERE status = 'ACTIVE') AS activeMembers, " +
+            "  (SELECT COUNT(*) FROM members WHERE status = 'ACTIVE') AS TotalReaders, " +
+            "  (SELECT COUNT(*) FROM Users WHERE UPPER(Role) = 'LIBRARIAN') AS TotalLibrarians, " +
             "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED') AS currentlyBorrowed, " +
+            "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED') AS CurrentlyBorrowing, " +
             "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED' AND due_date < CURDATE()) AS overdueCount, " +
+            "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED' AND due_date < CURDATE()) AS OverdueSlips, " +
             "  (SELECT COUNT(*) FROM transactions) AS totalTransactions, " +
-            "  (SELECT COALESCE(SUM(fine), 0) FROM transactions WHERE status = 'RETURNED') AS totalFinesCollected";
+            "  (SELECT COUNT(*) FROM transactions) AS TotalBorrowSlips, " +
+            "  (SELECT COALESCE(SUM(fine), 0) FROM transactions WHERE status = 'RETURNED') AS totalFinesCollected, " +
+            "  (SELECT COALESCE(SUM(fine), 0) FROM transactions WHERE status = 'RETURNED') AS TotalFineCollected";
         return jdbc.queryForMap(sql);
     }
 
@@ -356,18 +369,19 @@ public class LibrarySchemaService {
      */
     public List<Map<String, Object>> allBorrows() {
         String sql =
-            "SELECT t.id AS transactionId, " +
+            "SELECT t.id AS transactionId, t.id AS borrowSlipId, t.id AS BorrowSlipId, " +
             "       m.id AS memberId, " +
-            "       u.UserId, u.FullName AS memberName, u.Email AS memberEmail, " +
-            "       b.BookId, b.Title AS bookTitle, " +
+            "       u.UserId, u.FullName AS memberName, u.FullName AS readerName, u.FullName AS ReaderName, " +
+            "       u.Email AS memberEmail, u.Email AS email, " +
+            "       b.BookId, b.Title AS bookTitle, b.Title AS BookTitle, " +
             "       a.AuthorName, " +
-            "       t.issue_date AS issueDate, " +
-            "       t.due_date AS dueDate, " +
-            "       t.return_date AS returnDate, " +
-            "       t.status, " +
-            "       t.fine, " +
+            "       t.issue_date AS issueDate, t.issue_date AS borrowDate, t.issue_date AS BorrowDate, " +
+            "       t.due_date AS dueDate, t.due_date AS DueDate, " +
+            "       t.return_date AS returnDate, t.return_date AS ReturnDate, " +
+            "       t.status, t.status AS slipStatus, t.status AS SlipStatus, " +
+            "       t.fine, t.fine AS fineAmount, t.fine AS FineAmount, " +
             "       t.damage_penalty AS damagePenalty, " +
-            "       t.book_condition_on_return AS bookCondition, " +
+            "       t.book_condition_on_return AS bookCondition, t.book_condition_on_return AS BookCondition, " +
             "       t.penalty_status AS penaltyStatus " +
             "FROM transactions t " +
             "JOIN members m ON m.id = t.member_id " +
@@ -400,16 +414,37 @@ public class LibrarySchemaService {
 
     private Map<String, Object> mapBook(ResultSet rs) throws SQLException {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id",              rs.getInt("BookId"));
-        m.put("title",           rs.getString("Title"));
-        m.put("author",          rs.getString("AuthorName"));
-        m.put("genre",           rs.getString("CategoryName"));
-        m.put("publisher",       rs.getString("PublisherName"));
-        m.put("year",            rs.getObject("PublishYear"));
-        m.put("isbn",            rs.getString("ISBN"));
-        m.put("totalCopies",     rs.getInt("Quantity"));
-        m.put("availableCopies", rs.getInt("AvailableQuantity"));
-        m.put("status",          rs.getString("Status"));
+        int bookId = rs.getInt("BookId");
+        String title = rs.getString("Title");
+        String author = rs.getString("AuthorName");
+        String genre = rs.getString("CategoryName");
+        String publisher = rs.getString("PublisherName");
+        Object year = rs.getObject("PublishYear");
+        String isbn = rs.getString("ISBN");
+        int quantity = rs.getInt("Quantity");
+        int available = rs.getInt("AvailableQuantity");
+        String status = rs.getString("Status");
+
+        m.put("id",              bookId);
+        m.put("BookId",          bookId);
+        m.put("title",           title);
+        m.put("BookTitle",       title);
+        m.put("author",          author);
+        m.put("AuthorName",      author);
+        m.put("genre",           genre);
+        m.put("CategoryName",    genre);
+        m.put("publisher",       publisher);
+        m.put("PublisherName",   publisher);
+        m.put("year",            year);
+        m.put("PublishYear",     year);
+        m.put("isbn",            isbn);
+        m.put("ISBN",            isbn);
+        m.put("totalCopies",     quantity);
+        m.put("Quantity",        quantity);
+        m.put("availableCopies", available);
+        m.put("AvailableQuantity", available);
+        m.put("status",          status);
+        m.put("Status",          status);
         return m;
     }
 
