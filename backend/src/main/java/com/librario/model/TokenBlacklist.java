@@ -6,6 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "token_blacklist")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -19,6 +20,7 @@ public class TokenBlacklist {
     @Column(columnDefinition = "VARCHAR(1000)", nullable = false, unique = true)
     private String token;
 
+    @Column(name = "blacklisted_at")
     private LocalDateTime blacklistedAt;
 
     public TokenBlacklist(String token) {
