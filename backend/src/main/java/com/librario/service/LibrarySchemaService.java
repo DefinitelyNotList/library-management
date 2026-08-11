@@ -338,31 +338,60 @@ public class LibrarySchemaService {
     }
 
     /**
-     * Danh sách sách đang mượn quá hạn.
+     * Danh sách sách đang mượn quá hạn (truy vấn cả transactions và borrowslips).
      */
     public List<Map<String, Object>> overdue() {
-        String sql =
-            "SELECT t.id AS transactionId, t.id AS borrowSlipId, t.id AS BorrowSlipId, " +
-            "       u.UserId, u.FullName AS memberName, u.FullName AS readerName, u.FullName AS ReaderName, " +
-            "       u.Email AS memberEmail, u.Email AS email, u.Email AS Email, " +
-            "       u.PhoneNumber AS phoneNumber, u.PhoneNumber AS PhoneNumber, " +
-            "       b.BookId, b.Title AS bookTitle, b.Title AS BookTitle, " +
-            "       t.issue_date AS issueDate, t.issue_date AS borrowDate, t.issue_date AS BorrowDate, " +
-            "       t.due_date AS dueDate, t.due_date AS DueDate, " +
-            "       DATEDIFF(CURDATE(), t.due_date) AS overdueDays, DATEDIFF(CURDATE(), t.due_date) AS OverdueDays, " +
-            "       (GREATEST(DATEDIFF(CURDATE(), t.due_date), 0) * 5000) AS estimatedFine, " +
-            "       (GREATEST(DATEDIFF(CURDATE(), t.due_date), 0) * 5000) AS EstimatedFine " +
-            "FROM transactions t " +
-            "JOIN members m ON m.id = t.member_id " +
-            "JOIN Users u ON u.UserId = m.user_id " +
-            "JOIN Books b ON b.BookId = t.book_id " +
-            "WHERE t.status = 'BORROWED' AND t.due_date < CURDATE() " +
-            "ORDER BY t.due_date ASC";
-        return jdbc.queryForList(sql);
+        List<Map<String, Object>> list = new ArrayList<>();
+
+        // 1. Query from transactions table
+        try {
+            String sqlTx =
+                "SELECT t.id AS transactionId, t.id AS borrowSlipId, t.id AS BorrowSlipId, " +
+                "       u.UserId, u.FullName AS memberName, u.FullName AS readerName, u.FullName AS ReaderName, " +
+                "       u.Email AS memberEmail, u.Email AS email, u.Email AS Email, " +
+                "       u.PhoneNumber AS phoneNumber, u.PhoneNumber AS PhoneNumber, " +
+                "       b.BookId, b.Title AS bookTitle, b.Title AS BookTitle, " +
+                "       t.issue_date AS issueDate, t.issue_date AS borrowDate, t.issue_date AS BorrowDate, " +
+                "       t.due_date AS dueDate, t.due_date AS DueDate, " +
+                "       DATEDIFF(CURDATE(), t.due_date) AS overdueDays, DATEDIFF(CURDATE(), t.due_date) AS OverdueDays, " +
+                "       (GREATEST(DATEDIFF(CURDATE(), t.due_date), 0) * 5000) AS estimatedFine, " +
+                "       (GREATEST(DATEDIFF(CURDATE(), t.due_date), 0) * 5000) AS EstimatedFine " +
+                "FROM transactions t " +
+                "JOIN members m ON m.id = t.member_id " +
+                "JOIN Users u ON u.UserId = m.user_id " +
+                "JOIN Books b ON b.BookId = t.book_id " +
+                "WHERE (t.status = 'BORROWED' OR t.status = 'OVERDUE') AND t.due_date < CURDATE() " +
+                "ORDER BY t.due_date ASC";
+            list.addAll(jdbc.queryForList(sqlTx));
+        } catch (Exception e) {}
+
+        // 2. Query from borrowslips + borrowdetails tables (seed dataset)
+        try {
+            String sqlSlips =
+                "SELECT bd.BorrowDetailId AS transactionId, bs.BorrowSlipId AS borrowSlipId, bs.BorrowSlipId AS BorrowSlipId, " +
+                "       u.UserId, u.FullName AS memberName, u.FullName AS readerName, u.FullName AS ReaderName, " +
+                "       u.Email AS memberEmail, u.Email AS email, u.Email AS Email, " +
+                "       u.PhoneNumber AS phoneNumber, u.PhoneNumber AS PhoneNumber, " +
+                "       b.BookId, b.Title AS bookTitle, b.Title AS BookTitle, " +
+                "       bs.BorrowDate AS issueDate, bs.BorrowDate AS borrowDate, bs.BorrowDate AS BorrowDate, " +
+                "       bs.DueDate AS dueDate, bs.DueDate AS DueDate, " +
+                "       DATEDIFF(CURDATE(), bs.DueDate) AS overdueDays, DATEDIFF(CURDATE(), bs.DueDate) AS OverdueDays, " +
+                "       (GREATEST(DATEDIFF(CURDATE(), bs.DueDate), 0) * 5000) AS estimatedFine, " +
+                "       (GREATEST(DATEDIFF(CURDATE(), bs.DueDate), 0) * 5000) AS EstimatedFine " +
+                "FROM borrowdetails bd " +
+                "JOIN borrowslips bs ON bs.BorrowSlipId = bd.BorrowSlipId " +
+                "JOIN Users u ON u.UserId = bs.ReaderId " +
+                "JOIN Books b ON b.BookId = bd.BookId " +
+                "WHERE (UPPER(bs.Status) = 'OVERDUE' OR bs.DueDate < CURDATE()) AND bd.ReturnDate IS NULL " +
+                "ORDER BY bs.DueDate ASC";
+            list.addAll(jdbc.queryForList(sqlSlips));
+        } catch (Exception e) {}
+
+        return list;
     }
 
     /**
-     * Thống kê thư viện tổng hợp.
+     * Thống kê thư viện tổng hợp (kết hợp cả transactions và borrowslips).
      */
     public Map<String, Object> statistics() {
         String sql =
@@ -374,14 +403,14 @@ public class LibrarySchemaService {
             "  (SELECT GREATEST((SELECT COUNT(*) FROM Users WHERE UPPER(Role) IN ('MEMBER', 'READER')), (SELECT COUNT(*) FROM members))) AS activeMembers, " +
             "  (SELECT GREATEST((SELECT COUNT(*) FROM Users WHERE UPPER(Role) IN ('MEMBER', 'READER')), (SELECT COUNT(*) FROM members))) AS TotalReaders, " +
             "  (SELECT COUNT(*) FROM Users WHERE UPPER(Role) = 'LIBRARIAN') AS TotalLibrarians, " +
-            "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED') AS currentlyBorrowed, " +
-            "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED') AS CurrentlyBorrowing, " +
-            "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED' AND due_date < CURDATE()) AS overdueCount, " +
-            "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED' AND due_date < CURDATE()) AS OverdueSlips, " +
-            "  (SELECT COUNT(*) FROM transactions) AS totalTransactions, " +
-            "  (SELECT COUNT(*) FROM transactions) AS TotalBorrowSlips, " +
-            "  (SELECT COALESCE(SUM(fine), 0) FROM transactions WHERE status = 'RETURNED') AS totalFinesCollected, " +
-            "  (SELECT COALESCE(SUM(fine), 0) FROM transactions WHERE status = 'RETURNED') AS TotalFineCollected";
+            "  ((SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED') + (SELECT COUNT(*) FROM borrowslips WHERE UPPER(Status) IN ('BORROWING', 'BORROWED'))) AS currentlyBorrowed, " +
+            "  ((SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED') + (SELECT COUNT(*) FROM borrowslips WHERE UPPER(Status) IN ('BORROWING', 'BORROWED'))) AS CurrentlyBorrowing, " +
+            "  ((SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED' AND due_date < CURDATE()) + (SELECT COUNT(*) FROM borrowslips WHERE UPPER(Status) = 'OVERDUE' OR DueDate < CURDATE())) AS overdueCount, " +
+            "  ((SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED' AND due_date < CURDATE()) + (SELECT COUNT(*) FROM borrowslips WHERE UPPER(Status) = 'OVERDUE' OR DueDate < CURDATE())) AS OverdueSlips, " +
+            "  ((SELECT COUNT(*) FROM transactions) + (SELECT COUNT(*) FROM borrowslips)) AS totalTransactions, " +
+            "  ((SELECT COUNT(*) FROM transactions) + (SELECT COUNT(*) FROM borrowslips)) AS TotalBorrowSlips, " +
+            "  ((SELECT COALESCE(SUM(fine), 0) FROM transactions WHERE status = 'RETURNED') + (SELECT COALESCE(SUM(FineAmount), 0) FROM borrowdetails WHERE ReturnDate IS NOT NULL)) AS totalFinesCollected, " +
+            "  ((SELECT COALESCE(SUM(fine), 0) FROM transactions WHERE status = 'RETURNED') + (SELECT COALESCE(SUM(FineAmount), 0) FROM borrowdetails WHERE ReturnDate IS NOT NULL)) AS TotalFineCollected";
         return jdbc.queryForMap(sql);
     }
 

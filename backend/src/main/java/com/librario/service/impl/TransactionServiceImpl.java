@@ -6,6 +6,7 @@ import com.librario.model.Transaction;
 import com.librario.repository.BookRepository;
 import com.librario.repository.MemberRepository;
 import com.librario.repository.TransactionRepository;
+import com.librario.repository.UserRepository;
 import com.librario.service.TransactionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +20,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepo;
     private final MemberRepository memberRepo;
     private final BookRepository bookRepo;
-    private final com.librario.repository.UserRepository userRepo;
+    private final UserRepository userRepo;
 
     private static final int FINE_PER_DAY = 5000; // 5.000 VND per day
 
