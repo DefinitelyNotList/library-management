@@ -2,15 +2,19 @@ package com.librario.service;
 
 import com.librario.dto.BookUpsertRequest;
 import com.librario.dto.BorrowRequest;
+import com.librario.model.Book;
+import com.librario.model.Member;
+import com.librario.model.Transaction;
+import com.librario.repository.BookRepository;
+import com.librario.repository.MemberRepository;
+import com.librario.repository.TransactionRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +23,7 @@ import java.util.Map;
 public class LibrarySchemaService {
 
     // ──────────────────────────────────────────────
-    // SQL Constants
+    // SQL Constants — all queries use actual MySQL tables
     // ──────────────────────────────────────────────
 
     private static final String SELECT_BOOKS =
@@ -31,9 +35,18 @@ public class LibrarySchemaService {
             "LEFT JOIN Publishers p ON p.PublisherId  = b.PublisherId";
 
     private final JdbcTemplate jdbc;
+    private final TransactionRepository transactionRepo;
+    private final MemberRepository memberRepo;
+    private final BookRepository bookRepo;
 
-    public LibrarySchemaService(JdbcTemplate jdbc) {
+    public LibrarySchemaService(JdbcTemplate jdbc,
+                                TransactionRepository transactionRepo,
+                                MemberRepository memberRepo,
+                                BookRepository bookRepo) {
         this.jdbc = jdbc;
+        this.transactionRepo = transactionRepo;
+        this.memberRepo = memberRepo;
+        this.bookRepo = bookRepo;
     }
 
     // ──────────────────────────────────────────────
@@ -135,14 +148,13 @@ public class LibrarySchemaService {
     }
 
     // ──────────────────────────────────────────────
-    // Borrow / Return
+    // Borrow — uses TransactionRepository (bảng `transactions`)
     // ──────────────────────────────────────────────
 
     @Transactional
     public Map<String, Object> borrow(BorrowRequest r) {
-        if (r.readerId() == null || r.librarianId() == null
-                || r.bookIds() == null || r.bookIds().isEmpty()) {
-            throw new IllegalArgumentException("Cần có độc giả, thủ thư và ít nhất một sách.");
+        if (r.readerId() == null || r.bookIds() == null || r.bookIds().isEmpty()) {
+            throw new IllegalArgumentException("Cần có độc giả và ít nhất một sách.");
         }
 
         int days = (r.borrowDays() == null) ? 14 : r.borrowDays();
@@ -150,15 +162,13 @@ public class LibrarySchemaService {
             throw new IllegalArgumentException("Thời hạn mượn phải từ 1 đến 90 ngày.");
         }
 
-        if (!validUser(r.readerId(), "READER") || !validUser(r.librarianId(), "LIBRARIAN")) {
-            throw new IllegalArgumentException("Độc giả hoặc thủ thư không hợp lệ/đã bị khóa.");
+        // Validate member exists (check by userId or memberId)
+        Member member = memberRepo.findByUserId(r.readerId().longValue());
+        if (member == null) {
+            member = memberRepo.findById(r.readerId().longValue()).orElse(null);
         }
-
-        int overdueCount = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM BorrowSlips WHERE ReaderId = ? AND Status = 'Overdue'",
-                Integer.class, r.readerId());
-        if (overdueCount > 0) {
-            throw new IllegalStateException("Độc giả đang có phiếu mượn quá hạn.");
+        if (member == null) {
+            throw new IllegalArgumentException("Độc giả không tồn tại hoặc chưa có hội viên: " + r.readerId());
         }
 
         List<Integer> ids = r.bookIds().stream().distinct().toList();
@@ -166,126 +176,221 @@ public class LibrarySchemaService {
             throw new IllegalArgumentException("Mỗi phiếu mượn tối đa 5 quyển sách.");
         }
 
+        // Check if member already has overdue borrows
+        long overdueCount = transactionRepo.findByMemberId(member.getId())
+                .stream()
+                .filter(t -> "BORROWED".equals(t.getStatus()) && t.getDueDate().isBefore(LocalDate.now()))
+                .count();
+        if (overdueCount > 0) {
+            throw new IllegalStateException("Độc giả đang có sách mượn quá hạn.");
+        }
+
+        LocalDate issueDate = LocalDate.now();
+        LocalDate dueDate = issueDate.plusDays(days);
+
+        // Issue each book
         for (Integer bookId : ids) {
-            Integer available = jdbc.queryForObject(
-                    "SELECT AvailableQuantity FROM Books WHERE BookId = ? FOR UPDATE",
-                    Integer.class, bookId);
-            if (available == null || available <= 0) {
-                throw new IllegalStateException("Sách mã " + bookId + " không còn sẵn.");
+            Book book = bookRepo.findById(bookId.longValue())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sách mã " + bookId));
+
+            if (book.getAvailableCopies() <= 0) {
+                throw new IllegalStateException("Sách \"" + book.getTitle() + "\" không còn sẵn.");
             }
+
+            // Check for duplicate active borrow
+            if (transactionRepo.existsByMemberIdAndBookIdAndStatus(member.getId(), bookId.longValue(), "BORROWED")) {
+                throw new IllegalStateException("Thành viên đã mượn sách \"" + book.getTitle() + "\" và chưa trả.");
+            }
+
+            Transaction transaction = new Transaction();
+            transaction.setMember(member);
+            transaction.setBook(book);
+            transaction.setIssueDate(issueDate);
+            transaction.setDueDate(dueDate);
+            transaction.setStatus("BORROWED");
+
+            // Decrease available copies
+            book.setAvailableCopies(book.getAvailableCopies() - 1);
+            if (book.getAvailableCopies() == 0) {
+                book.setStatus("Out of stock");
+            } else {
+                book.setStatus("Available");
+            }
+            bookRepo.save(book);
+            transactionRepo.save(transaction);
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime due = now.plusDays(days);
-
-        jdbc.update(
-                "INSERT INTO BorrowSlips (ReaderId, LibrarianId, BorrowDate, DueDate, Status) VALUES (?, ?, ?, ?, 'Borrowing')",
-                r.readerId(), r.librarianId(), now, due
+        return Map.of(
+                "memberId", member.getId(),
+                "bookCount", ids.size(),
+                "status", "BORROWED",
+                "issueDate", issueDate.toString(),
+                "dueDate", dueDate.toString()
         );
-        int slip = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Integer.class);
-
-        for (Integer bookId : ids) {
-            jdbc.update("INSERT INTO BorrowDetails (BorrowSlipId, BookId) VALUES (?, ?)", slip, bookId);
-            jdbc.update(
-                    "UPDATE Books SET AvailableQuantity = AvailableQuantity - 1, " +
-                    "Status = CASE WHEN AvailableQuantity - 1 = 0 THEN 'Out of stock' ELSE 'Available' END " +
-                    "WHERE BookId = ?",
-                    bookId
-            );
-        }
-
-        return Map.of("borrowSlipId", slip, "status", "Borrowing", "dueDate", due.toString());
     }
+
+    // ──────────────────────────────────────────────
+    // Return — uses TransactionRepository (bảng `transactions`)
+    // ──────────────────────────────────────────────
 
     @Transactional
-    public Map<String, Object> returnBook(int detailId, String condition) {
-        Map<String, Object> row = jdbc.queryForMap(
-                "SELECT bd.BorrowSlipId, bd.BookId, bs.DueDate " +
-                "FROM BorrowDetails bd " +
-                "JOIN BorrowSlips bs ON bs.BorrowSlipId = bd.BorrowSlipId " +
-                "WHERE bd.BorrowDetailId = ? AND bd.ReturnDate IS NULL",
-                detailId
-        );
+    public Map<String, Object> returnBook(int transactionId, String condition) {
+        Transaction transaction = transactionRepo.findById((long) transactionId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy giao dịch mã " + transactionId));
 
-        String bookCondition = (condition == null || condition.isBlank()) ? "Good" : condition;
-        if (!List.of("Good", "Slightly damaged", "Lost").contains(bookCondition)) {
-            throw new IllegalArgumentException("Tình trạng sách không hợp lệ.");
+        if (!"BORROWED".equals(transaction.getStatus()) && !"RENEWED".equals(transaction.getStatus())) {
+            throw new IllegalStateException("Giao dịch này không ở trạng thái mượn.");
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime due = ((java.sql.Timestamp) row.get("DueDate")).toLocalDateTime();
-        long overdueDays = Math.max(0, ChronoUnit.DAYS.between(due.toLocalDate(), now.toLocalDate()));
-        BigDecimal fine = BigDecimal.valueOf(overdueDays * 5_000L);
+        String bookCondition = (condition == null || condition.isBlank()) ? "GOOD" : condition.toUpperCase();
 
-        jdbc.update(
-                "UPDATE BorrowDetails SET ReturnDate = ?, FineAmount = ?, BookCondition = ? WHERE BorrowDetailId = ?",
-                now, fine, bookCondition, detailId
-        );
+        LocalDate returnDate = LocalDate.now();
+        transaction.setReturnDate(returnDate);
+        transaction.setStatus("RETURNED");
+        transaction.setBookConditionOnReturn(bookCondition);
 
-        int bookId = ((Number) row.get("BookId")).intValue();
-        jdbc.update("UPDATE Books SET AvailableQuantity = AvailableQuantity + 1, Status = 'Available' WHERE BookId = ?", bookId);
-
-        int slip = ((Number) row.get("BorrowSlipId")).intValue();
-        int remaining = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM BorrowDetails WHERE BorrowSlipId = ? AND ReturnDate IS NULL",
-                Integer.class, slip);
-        if (remaining == 0) {
-            jdbc.update("UPDATE BorrowSlips SET Status = 'Returned' WHERE BorrowSlipId = ?", slip);
+        // Calculate overdue fine (5,000 VND/day)
+        int overdueFine = 0;
+        if (returnDate.isAfter(transaction.getDueDate())) {
+            long overdueDays = java.time.temporal.ChronoUnit.DAYS.between(transaction.getDueDate(), returnDate);
+            overdueFine = (int) (overdueDays * 5_000L);
         }
+        transaction.setFine(overdueFine);
 
-        return Map.of("borrowDetailId", detailId, "fineAmount", fine, "returnedAt", now.toString());
+        // Increase available copies
+        Book book = transaction.getBook();
+        book.setAvailableCopies(book.getAvailableCopies() + 1);
+        book.setStatus("Available");
+        bookRepo.save(book);
+
+        transactionRepo.save(transaction);
+
+        return Map.of(
+                "transactionId", transactionId,
+                "returnDate", returnDate.toString(),
+                "bookCondition", bookCondition,
+                "fine", overdueFine,
+                "status", "RETURNED"
+        );
     }
 
     // ──────────────────────────────────────────────
-    // Queries / Statistics
+    // Queries / Statistics — using bảng `transactions`, `members`, `Books`, `Users`
     // ──────────────────────────────────────────────
 
+    /**
+     * Lịch sử mượn sách theo readerId (UserId hoặc memberId).
+     */
     public List<Map<String, Object>> history(int readerId) {
-        return jdbc.queryForList(
-                "SELECT * FROM vw_BorrowSlipDetails WHERE ReaderId = ? ORDER BY BorrowSlipId DESC, BorrowDetailId DESC",
-                readerId
-        );
+        // Try by member.id first, then by user.id via join
+        String sql =
+            "SELECT t.id AS transactionId, " +
+            "       b.BookId, b.Title AS bookTitle, " +
+            "       a.AuthorName, " +
+            "       t.issue_date AS issueDate, " +
+            "       t.due_date AS dueDate, " +
+            "       t.return_date AS returnDate, " +
+            "       t.status, " +
+            "       t.fine, " +
+            "       t.penalty_status AS penaltyStatus " +
+            "FROM transactions t " +
+            "JOIN members m ON m.id = t.member_id " +
+            "JOIN Books b ON b.BookId = t.book_id " +
+            "LEFT JOIN Authors a ON a.AuthorId = b.AuthorId " +
+            "WHERE m.id = ? OR m.user_id = ? " +
+            "ORDER BY t.id DESC";
+        return jdbc.queryForList(sql, readerId, readerId);
     }
 
+    /**
+     * Danh sách sách đang mượn quá hạn.
+     */
     public List<Map<String, Object>> overdue() {
-        return jdbc.queryForList("SELECT * FROM vw_OverdueBorrowDetails ORDER BY DueDate");
+        String sql =
+            "SELECT t.id AS transactionId, " +
+            "       u.UserId, u.FullName AS memberName, u.Email AS memberEmail, " +
+            "       b.BookId, b.Title AS bookTitle, " +
+            "       t.issue_date AS issueDate, " +
+            "       t.due_date AS dueDate, " +
+            "       DATEDIFF(CURDATE(), t.due_date) AS overdueDays " +
+            "FROM transactions t " +
+            "JOIN members m ON m.id = t.member_id " +
+            "JOIN Users u ON u.UserId = m.user_id " +
+            "JOIN Books b ON b.BookId = t.book_id " +
+            "WHERE t.status = 'BORROWED' AND t.due_date < CURDATE() " +
+            "ORDER BY t.due_date ASC";
+        return jdbc.queryForList(sql);
     }
 
+    /**
+     * Thống kê thư viện tổng hợp.
+     */
     public Map<String, Object> statistics() {
-        return jdbc.queryForMap("SELECT * FROM vw_LibraryStatistics");
+        String sql =
+            "SELECT " +
+            "  (SELECT COUNT(*) FROM Books) AS totalBooks, " +
+            "  (SELECT SUM(AvailableQuantity) FROM Books) AS availableBooks, " +
+            "  (SELECT COUNT(*) FROM members WHERE status = 'ACTIVE') AS activeMembers, " +
+            "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED') AS currentlyBorrowed, " +
+            "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED' AND due_date < CURDATE()) AS overdueCount, " +
+            "  (SELECT COUNT(*) FROM transactions) AS totalTransactions, " +
+            "  (SELECT COALESCE(SUM(fine), 0) FROM transactions WHERE status = 'RETURNED') AS totalFinesCollected";
+        return jdbc.queryForMap(sql);
     }
 
+    /**
+     * Cập nhật trạng thái quá hạn trong bảng transactions.
+     */
+    @Transactional
     public Map<String, Object> updateOverdue() {
-        jdbc.update("UPDATE BorrowSlips SET Status = 'Overdue' WHERE Status = 'Borrowing' AND DueDate < NOW()");
+        // Update penalty status for overdue transactions that are still BORROWED
+        jdbc.update(
+            "UPDATE transactions SET penalty_status = 'PENDING' " +
+            "WHERE status = 'BORROWED' AND due_date < CURDATE() AND (penalty_status IS NULL OR penalty_status = 'PENDING')"
+        );
         return statistics();
     }
 
-    public List<Map<String, Object>> topBooks() {
-        return jdbc.queryForList(
-                "SELECT bk.BookId, bk.Title, a.AuthorName, c.CategoryName, " +
-                "COUNT(bd.BorrowDetailId) AS TimesBorrowed " +
-                "FROM Books bk " +
-                "LEFT JOIN BorrowDetails bd ON bd.BookId = bk.BookId " +
-                "LEFT JOIN Authors       a  ON a.AuthorId = bk.AuthorId " +
-                "LEFT JOIN Categories    c  ON c.CategoryId = bk.CategoryId " +
-                "GROUP BY bk.BookId, bk.Title, a.AuthorName, c.CategoryName " +
-                "ORDER BY TimesBorrowed DESC LIMIT 10"
-        );
+    /**
+     * Toàn bộ lịch sử mượn/trả (dành cho admin/librarian).
+     */
+    public List<Map<String, Object>> allBorrows() {
+        String sql =
+            "SELECT t.id AS transactionId, " +
+            "       m.id AS memberId, " +
+            "       u.UserId, u.FullName AS memberName, u.Email AS memberEmail, " +
+            "       b.BookId, b.Title AS bookTitle, " +
+            "       a.AuthorName, " +
+            "       t.issue_date AS issueDate, " +
+            "       t.due_date AS dueDate, " +
+            "       t.return_date AS returnDate, " +
+            "       t.status, " +
+            "       t.fine, " +
+            "       t.damage_penalty AS damagePenalty, " +
+            "       t.book_condition_on_return AS bookCondition, " +
+            "       t.penalty_status AS penaltyStatus " +
+            "FROM transactions t " +
+            "JOIN members m ON m.id = t.member_id " +
+            "JOIN Users u ON u.UserId = m.user_id " +
+            "JOIN Books b ON b.BookId = t.book_id " +
+            "LEFT JOIN Authors a ON a.AuthorId = b.AuthorId " +
+            "ORDER BY t.id DESC";
+        return jdbc.queryForList(sql);
     }
 
-    public List<Map<String, Object>> allBorrows() {
+    /**
+     * Top 10 sách được mượn nhiều nhất.
+     */
+    public List<Map<String, Object>> topBooks() {
         return jdbc.queryForList(
-                "SELECT bs.BorrowSlipId, bs.BorrowDate, bs.DueDate, bs.Status AS SlipStatus, " +
-                "r.UserId AS ReaderId, r.FullName AS ReaderName, r.Email AS ReaderEmail, " +
-                "l.FullName AS LibrarianName, " +
-                "bd.BorrowDetailId, bk.BookId, bk.Title AS BookTitle, " +
-                "bd.ReturnDate, bd.FineAmount, bd.BookCondition " +
-                "FROM BorrowSlips bs " +
-                "JOIN Users r  ON bs.ReaderId    = r.UserId " +
-                "JOIN Users l  ON bs.LibrarianId  = l.UserId " +
-                "JOIN BorrowDetails bd ON bd.BorrowSlipId = bs.BorrowSlipId " +
-                "JOIN Books bk ON bd.BookId = bk.BookId " +
-                "ORDER BY bs.BorrowSlipId DESC"
+                "SELECT b.BookId, b.Title, a.AuthorName, c.CategoryName, " +
+                "COUNT(t.id) AS timesBorrowed " +
+                "FROM Books b " +
+                "LEFT JOIN transactions t ON t.book_id = b.BookId " +
+                "LEFT JOIN Authors       a ON a.AuthorId    = b.AuthorId " +
+                "LEFT JOIN Categories    c ON c.CategoryId  = b.CategoryId " +
+                "GROUP BY b.BookId, b.Title, a.AuthorName, c.CategoryName " +
+                "ORDER BY timesBorrowed DESC LIMIT 10"
         );
     }
 
@@ -323,17 +428,6 @@ public class LibrarySchemaService {
 
         jdbc.update("INSERT INTO " + table + " (" + nameColumn + ") VALUES (?)", name.trim());
         return jdbc.queryForObject("SELECT LAST_INSERT_ID()", Integer.class);
-    }
-
-    private boolean validUser(int id, String role) {
-        if ("READER".equalsIgnoreCase(role)) {
-            return jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM Users WHERE UserId = ? AND (Role = 'READER' OR Role = 'MEMBER') AND IsActive = 1",
-                    Integer.class, id) >= 1;
-        }
-        return jdbc.queryForObject(
-                "SELECT COUNT(*) FROM Users WHERE UserId = ? AND Role = ? AND IsActive = 1",
-                Integer.class, id, role) == 1;
     }
 
     private void validate(BookUpsertRequest r) {

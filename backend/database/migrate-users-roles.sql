@@ -1,36 +1,55 @@
 /*
-  Run once against LibraryManagementDB after loading LibraryManagementDB.sql.
-  It adapts the existing Users table to the JPA authentication model without
-  discarding the original library data.
+  MySQL migration script - Run once against the MySQL database after initial schema setup.
+  Compatible with MySQL 5.7+ / MySQL 8+
+  Adds Roles table, RoleId column to Users, and migrates existing role values.
 */
-USE LibraryManagementDB;
-GO
 
-IF OBJECT_ID('dbo.Roles', 'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.Roles (
-        RoleId INT IDENTITY(1,1) PRIMARY KEY,
-        RoleName VARCHAR(20) NOT NULL UNIQUE
-    );
+-- Use the correct database
+USE defaultdb;
+
+-- Create Roles table if not exists
+CREATE TABLE IF NOT EXISTS Roles (
+    RoleId INT AUTO_INCREMENT PRIMARY KEY,
+    RoleName VARCHAR(20) NOT NULL UNIQUE
+);
+
+-- Insert default roles (ignore duplicates)
+INSERT IGNORE INTO Roles (RoleName) VALUES ('ADMIN');
+INSERT IGNORE INTO Roles (RoleName) VALUES ('LIBRARIAN');
+INSERT IGNORE INTO Roles (RoleName) VALUES ('MEMBER');
+
+-- Add RoleId column to Users if it doesn't exist
+ALTER TABLE Users
+    ADD COLUMN IF NOT EXISTS RoleId INT NULL;
+
+-- Add UpdatedAt column to Users if it doesn't exist
+ALTER TABLE Users
+    ADD COLUMN IF NOT EXISTS UpdatedAt DATETIME NULL;
+
+-- Populate RoleId based on existing Role column values
+UPDATE Users u
+JOIN Roles r ON r.RoleName = CASE
+    WHEN UPPER(u.Role) = 'READER' THEN 'MEMBER'
+    ELSE UPPER(u.Role)
 END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleName = 'ADMIN') INSERT INTO dbo.Roles (RoleName) VALUES ('ADMIN');
-IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleName = 'LIBRARIAN') INSERT INTO dbo.Roles (RoleName) VALUES ('LIBRARIAN');
-IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleName = 'MEMBER') INSERT INTO dbo.Roles (RoleName) VALUES ('MEMBER');
-GO
-
-IF COL_LENGTH('dbo.Users', 'RoleId') IS NULL ALTER TABLE dbo.Users ADD RoleId INT NULL;
-IF COL_LENGTH('dbo.Users', 'UpdatedAt') IS NULL ALTER TABLE dbo.Users ADD UpdatedAt DATETIME NULL;
-GO
-
-UPDATE u
-SET RoleId = r.RoleId
-FROM dbo.Users u
-JOIN dbo.Roles r ON r.RoleName = CASE WHEN u.Role = 'READER' THEN 'MEMBER' ELSE u.Role END
+SET u.RoleId = r.RoleId
 WHERE u.RoleId IS NULL;
-GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Users_Roles')
-    ALTER TABLE dbo.Users ADD CONSTRAINT FK_Users_Roles FOREIGN KEY (RoleId) REFERENCES dbo.Roles(RoleId);
-GO
+-- Add foreign key constraint if it does not exist
+-- (MySQL does not support IF NOT EXISTS for constraints, so we check via information_schema)
+SET @fk_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'Users'
+      AND CONSTRAINT_NAME = 'FK_Users_Roles'
+      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+
+SET @sql = IF(@fk_exists = 0,
+    'ALTER TABLE Users ADD CONSTRAINT FK_Users_Roles FOREIGN KEY (RoleId) REFERENCES Roles(RoleId)',
+    'SELECT ''FK_Users_Roles already exists, skipping.'''
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

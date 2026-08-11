@@ -1,8 +1,7 @@
 import axios from "axios";
 
-// Sử dụng đường dẫn tương đối "/api" thay vì hardcode "http://localhost:8080/api".
-// Trong development: Vite proxy (vite.config.js) sẽ forward request đến backend.
-// Trong production: cần cấu hình reverse proxy (nginx/...) chuyển /api → backend.
+// Sử dụng đường dẫn tương đối "/api" trong development vì Vite proxy (vite.config.js) sẽ forward request đến backend.
+// Trong production: hãy cấu hình biến môi trường VITE_API_URL để trỏ đến backend của bạn.
 const base = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 const axiosInstance = axios.create({
   baseURL: base,
