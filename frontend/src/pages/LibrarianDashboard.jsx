@@ -432,7 +432,7 @@ function LibrarianBookManagement() {
 
   return (
     <div className="min-vh-100 bg-gradient-subtle">
-      <div className="container-fluid px-4 py-5">
+      <div className="container-fluid px-4 py-4" style={{ paddingTop: "70px" }}>
         {/* Header Section */}
         <div className="row mb-5">
           <div className="col-12">

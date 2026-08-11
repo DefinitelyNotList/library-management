@@ -87,7 +87,12 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByEmail(loginDTO.getEmail().trim())
                 .orElseThrow(() -> new IllegalArgumentException("Email chưa được đăng ký trong hệ thống."));
 
-        if (user.getPassword() == null || !passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
+        boolean matches = user.getPassword() != null && (
+                passwordEncoder.matches(loginDTO.getPassword(), user.getPassword()) ||
+                loginDTO.getPassword().equals(user.getPassword())
+        );
+
+        if (!matches) {
             throw new IllegalArgumentException("Mật khẩu không chính xác.");
         }
 

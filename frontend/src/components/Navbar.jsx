@@ -53,13 +53,13 @@ function Navbar() {
           background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
           backdropFilter: "blur(10px)",
           borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-          padding: "1rem 0",
+          padding: "0.35rem 0",
         }}
       >
         <div className="container-fluid px-4">
           {/* Brand Logo */}
           <a
-            className="navbar-brand fs-3 fw-bold text-white d-flex align-items-center"
+            className="navbar-brand fs-5 fw-bold text-white d-flex align-items-center mb-0"
             href="/"
             onClick={handleBrandClick}
             style={{
@@ -78,14 +78,14 @@ function Navbar() {
             }}
           >
             <div
-              className="d-flex align-items-center justify-content-center me-3 rounded-circle"
+              className="d-flex align-items-center justify-content-center me-2 rounded-circle"
               style={{
-                width: "50px",
-                height: "50px",
+                width: "36px",
+                height: "36px",
                 background: "linear-gradient(135deg, #fff 0%, #f0f0f0 100%)",
                 color: "#667eea",
-                fontSize: "1.5rem",
-                boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
+                fontSize: "1.1rem",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
               }}
             >
               📚
@@ -221,27 +221,26 @@ function Navbar() {
               ) : (
                 <>
                   {/* Welcome Badge */}
-                  <li className="nav-item me-3">
+                  <li className="nav-item me-2">
                     <div
-                      className="d-flex align-items-center px-4 py-2 rounded-pill"
+                      className="d-flex align-items-center px-3 py-1 rounded-pill"
                       style={{
                         background:
                           "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 248, 255, 0.95) 100%)",
                         backdropFilter: "blur(15px)",
                         border: "1px solid rgba(255, 255, 255, 0.3)",
-                        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
-                        animation: "glow 2s ease-in-out infinite alternate",
+                        boxShadow: "0 4px 15px rgba(0, 0, 0, 0.08)",
                       }}
                     >
                       <div
-                        className="d-flex align-items-center justify-content-center me-3 rounded-circle"
+                        className="d-flex align-items-center justify-content-center me-2 rounded-circle"
                         style={{
-                          width: "35px",
-                          height: "35px",
+                          width: "26px",
+                          height: "26px",
                           background:
                             "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                           color: "white",
-                          fontSize: "1rem",
+                          fontSize: "0.85rem",
                         }}
                       >
                         👋

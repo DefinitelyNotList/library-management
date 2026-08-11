@@ -174,8 +174,8 @@ function AdminDashboard() {
         <div className="bg-circle bg-circle-2"></div>
       </div>
 
-      <div className="dashboard-container mt-4 pt-4">
-        <div className="container" style={{ marginTop: "90px" }}>
+      <div className="dashboard-container py-3">
+        <div className="container" style={{ marginTop: "60px" }}>
           {/* Header */}
           <div className={`fade-in ${isLoaded ? "loaded" : ""}`}>
             <div className="hero-header rounded-4 p-4 mb-4 shadow-sm position-relative">

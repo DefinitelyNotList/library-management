@@ -61,7 +61,7 @@ function AdminReports() {
         .reports-bg {
           background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
           min-height: 100vh;
-          padding-top: 90px;
+          padding-top: 65px;
           padding-bottom: 60px;
         }
         .glass-card {
