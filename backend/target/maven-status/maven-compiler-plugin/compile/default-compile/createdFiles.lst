@@ -60,7 +60,6 @@ com\librario\controller\ApiExceptionHandler.class
 com\librario\repository\BorrowedBookRepository.class
 com\librario\service\impl\MembershipPlanServiceImpl.class
 com\librario\model\MembershipPlan.class
-com\librario\config\DatabaseCleanupRunner.class
 com\librario\dto\PenaltyDto.class
 com\librario\service\OTPService.class
 com\librario\controller\LibraryOperationsController.class
