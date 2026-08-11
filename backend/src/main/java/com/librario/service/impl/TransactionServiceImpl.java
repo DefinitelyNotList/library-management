@@ -19,16 +19,18 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepo;
     private final MemberRepository memberRepo;
     private final BookRepository bookRepo;
-
+    private final com.librario.repository.UserRepository userRepo;
 
     private static final int FINE_PER_DAY = 5000; // 5.000 VND per day
 
     public TransactionServiceImpl(TransactionRepository transactionRepo,
                                   MemberRepository memberRepo,
-                                  BookRepository bookRepo) {
+                                  BookRepository bookRepo,
+                                  com.librario.repository.UserRepository userRepo) {
         this.transactionRepo = transactionRepo;
         this.memberRepo = memberRepo;
         this.bookRepo = bookRepo;
+        this.userRepo = userRepo;
     }
 
     @Override
@@ -37,6 +39,17 @@ public class TransactionServiceImpl implements TransactionService {
         Member member = memberRepo.findByUserId(memberId);
         if (member == null) {
             member = memberRepo.findById(memberId).orElse(null);
+        }
+        if (member == null) {
+            com.librario.model.User u = userRepo.findById(memberId).orElse(null);
+            if (u != null) {
+                member = new Member();
+                member.setUser(u);
+                member.setStartDate(LocalDate.now());
+                member.setStatus(Member.Status.ACTIVE);
+                member.setPenaltyAmount(0.0);
+                member = memberRepo.save(member);
+            }
         }
         if (member == null) {
             throw new IllegalArgumentException("Member not found for ID: " + memberId);
@@ -135,6 +148,12 @@ public class TransactionServiceImpl implements TransactionService {
         Member member = memberRepo.findByUserId(memberId);
         if (member == null) {
             member = memberRepo.findById(memberId).orElse(null);
+        }
+        if (member == null) {
+            com.librario.model.User u = userRepo.findById(memberId).orElse(null);
+            if (u != null) {
+                member = memberRepo.findByUserId(u.getId());
+            }
         }
         if (member == null) {
             return List.of();

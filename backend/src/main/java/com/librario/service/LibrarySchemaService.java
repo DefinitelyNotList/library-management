@@ -280,27 +280,60 @@ public class LibrarySchemaService {
 
     /**
      * Lịch sử mượn sách theo readerId (UserId hoặc memberId).
+     * Truy vấn kết hợp cả bảng transactions (Spring Boot JPA) và borrowslips + borrowdetails (SQL script).
      */
     public List<Map<String, Object>> history(int readerId) {
-        // Try by member.id first, then by user.id via join
-        String sql =
-            "SELECT t.id AS transactionId, t.id AS borrowSlipId, " +
-            "       b.BookId, b.Title AS bookTitle, " +
-            "       a.AuthorName, " +
-            "       t.issue_date AS issueDate, t.issue_date AS borrowDate, " +
-            "       t.due_date AS dueDate, " +
-            "       t.return_date AS returnDate, " +
-            "       t.status, t.status AS slipStatus, " +
-            "       t.fine, t.fine AS fineAmount, " +
-            "       t.book_condition_on_return AS bookCondition, " +
-            "       t.penalty_status AS penaltyStatus " +
-            "FROM transactions t " +
-            "JOIN members m ON m.id = t.member_id " +
-            "JOIN Books b ON b.BookId = t.book_id " +
-            "LEFT JOIN Authors a ON a.AuthorId = b.AuthorId " +
-            "WHERE m.id = ? OR m.user_id = ? " +
-            "ORDER BY t.id DESC";
-        return jdbc.queryForList(sql, readerId, readerId);
+        List<Map<String, Object>> results = new ArrayList<>();
+
+        // 1. Query from transactions table
+        try {
+            String sqlTx =
+                "SELECT t.id AS transactionId, t.id AS borrowSlipId, t.id AS BorrowSlipId, " +
+                "       b.BookId, b.Title AS bookTitle, b.Title AS BookTitle, " +
+                "       a.AuthorName, " +
+                "       t.issue_date AS issueDate, t.issue_date AS borrowDate, t.issue_date AS BorrowDate, " +
+                "       t.due_date AS dueDate, t.due_date AS DueDate, " +
+                "       t.return_date AS returnDate, t.return_date AS ReturnDate, " +
+                "       t.status, t.status AS slipStatus, t.status AS SlipStatus, " +
+                "       t.fine, t.fine AS fineAmount, t.fine AS FineAmount, " +
+                "       t.book_condition_on_return AS bookCondition, t.book_condition_on_return AS BookCondition, " +
+                "       t.penalty_status AS penaltyStatus " +
+                "FROM transactions t " +
+                "JOIN members m ON m.id = t.member_id " +
+                "JOIN Books b ON b.BookId = t.book_id " +
+                "LEFT JOIN Authors a ON a.AuthorId = b.AuthorId " +
+                "WHERE m.id = ? OR m.user_id = ? " +
+                "ORDER BY t.id DESC";
+            results.addAll(jdbc.queryForList(sqlTx, readerId, readerId));
+        } catch (Exception e) {
+            // Ignore if transactions query fails
+        }
+
+        // 2. Query from borrowslips + borrowdetails tables (legacy / seed data)
+        try {
+            String sqlSlips =
+                "SELECT bd.BorrowDetailId AS transactionId, bs.BorrowSlipId AS borrowSlipId, bs.BorrowSlipId AS BorrowSlipId, " +
+                "       b.BookId, b.Title AS bookTitle, b.Title AS BookTitle, " +
+                "       a.AuthorName, " +
+                "       bs.BorrowDate AS issueDate, bs.BorrowDate AS borrowDate, bs.BorrowDate AS BorrowDate, " +
+                "       bs.DueDate AS dueDate, bs.DueDate AS DueDate, " +
+                "       bd.ReturnDate AS returnDate, bd.ReturnDate AS ReturnDate, " +
+                "       bs.Status AS status, bs.Status AS slipStatus, bs.Status AS SlipStatus, " +
+                "       bd.FineAmount AS fine, bd.FineAmount AS fineAmount, bd.FineAmount AS FineAmount, " +
+                "       bd.BookCondition AS bookCondition, bd.BookCondition AS BookCondition, " +
+                "       'PENDING' AS penaltyStatus " +
+                "FROM borrowdetails bd " +
+                "JOIN borrowslips bs ON bs.BorrowSlipId = bd.BorrowSlipId " +
+                "JOIN Books b ON b.BookId = bd.BookId " +
+                "LEFT JOIN Authors a ON a.AuthorId = b.AuthorId " +
+                "WHERE bs.ReaderId = ? OR bs.ReaderId = (SELECT m2.user_id FROM members m2 WHERE m2.id = ? LIMIT 1) " +
+                "ORDER BY bd.BorrowDetailId DESC";
+            results.addAll(jdbc.queryForList(sqlSlips, readerId, readerId));
+        } catch (Exception e) {
+            // Ignore if borrowslips query fails
+        }
+
+        return results;
     }
 
     /**

@@ -98,7 +98,15 @@ public class UserServiceImpl implements UserService {
         if ("MEMBER".equals(roleName) || "READER".equals(roleName)) {
             try {
                 Member member = memberRepository.findByUserId(user.getId());
-                memberId = (member != null && member.getId() != null) ? member.getId() : user.getId();
+                if (member == null) {
+                    member = new Member();
+                    member.setUser(user);
+                    member.setStartDate(LocalDate.now());
+                    member.setStatus(Member.Status.ACTIVE);
+                    member.setPenaltyAmount(0.0);
+                    member = memberRepository.save(member);
+                }
+                memberId = member.getId();
             } catch (Exception e) {
                 memberId = user.getId();
             }
@@ -249,11 +257,20 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (!"MEMBER".equals(user.getRole().getRoleName())) return null;
+        String roleName = user.getRole() != null ? user.getRole().getRoleName() : "";
+        if (!"MEMBER".equalsIgnoreCase(roleName) && !"READER".equalsIgnoreCase(roleName)) return null;
 
         try {
             Member member = memberRepository.findByUserId(user.getId());
-            return (member != null && member.getId() != null) ? member.getId() : user.getId();
+            if (member == null) {
+                member = new Member();
+                member.setUser(user);
+                member.setStartDate(LocalDate.now());
+                member.setStatus(Member.Status.ACTIVE);
+                member.setPenaltyAmount(0.0);
+                member = memberRepository.save(member);
+            }
+            return member.getId();
         } catch (Exception e) {
             return user.getId();
         }
