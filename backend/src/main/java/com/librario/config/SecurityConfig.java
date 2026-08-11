@@ -36,12 +36,29 @@ public class SecurityConfig {
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             var corsConfig = new org.springframework.web.cors.CorsConfiguration();
-                            // Read allowed origins from env var APP_FRONTEND_URL (comma-separated)
-                            String frontendUrls = System.getenv().getOrDefault("APP_FRONTEND_URL", "http://localhost:5173,https://library-management-1-c185.vercel.app");
-                            List<String> origins = List.of(frontendUrls.split(","));
-                            corsConfig.setAllowedOrigins(origins);
-                            corsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-                            corsConfig.setAllowedHeaders(List.of("*"));
+                            String frontendUrls = System.getenv().getOrDefault("APP_FRONTEND_URL", "");
+                            java.util.List<String> patterns = new java.util.ArrayList<>();
+                            
+                            // Mặc định hỗ trợ localhost và tất cả domain vercel
+                            patterns.add("http://localhost:*");
+                            patterns.add("https://*.vercel.app");
+
+                            if (!frontendUrls.isBlank()) {
+                                for (String url : frontendUrls.split(",")) {
+                                    String trimmed = url.trim();
+                                    if (trimmed.endsWith("/")) {
+                                        trimmed = trimmed.substring(0, trimmed.length() - 1);
+                                    }
+                                    if (!trimmed.isEmpty() && !patterns.contains(trimmed)) {
+                                        patterns.add(trimmed);
+                                    }
+                                }
+                            }
+
+                            corsConfig.setAllowedOriginPatterns(patterns);
+                            corsConfig.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+                            corsConfig.setAllowedHeaders(java.util.List.of("*"));
+                            corsConfig.setExposedHeaders(java.util.List.of("Authorization", "Content-Type"));
                             corsConfig.setAllowCredentials(true);
                             return corsConfig;
                         })
