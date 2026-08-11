@@ -28,9 +28,13 @@ public class ApiExceptionHandler {
     }
 
     /** 500 Internal Server Error – lỗi không mong đợi */
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<Map<String, String>> internalError(RuntimeException ex) {
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleAllExceptions(Exception ex) {
+        String msg = ex.getMessage();
+        if (msg == null || msg.isBlank()) {
+            msg = ex.getClass().getSimpleName();
+        }
         return ResponseEntity.internalServerError()
-                .body(Map.of("message", ex.getMessage() != null ? ex.getMessage() : "Đã xảy ra lỗi hệ thống."));
+                .body(Map.of("message", msg));
     }
 }

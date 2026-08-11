@@ -76,17 +76,26 @@ public class UserServiceImpl implements UserService {
     // User Login
     @Override
     public LoginResponseDTO loginUser(LoginDTO loginDTO) {
-        User user = userRepository.findByEmail(loginDTO.getEmail())
-                .orElseThrow(() -> new RuntimeException("Email not registered"));
+        if (loginDTO.getEmail() == null || loginDTO.getEmail().isBlank()) {
+            throw new IllegalArgumentException("Email không được để trống.");
+        }
+        if (loginDTO.getPassword() == null || loginDTO.getPassword().isBlank()) {
+            throw new IllegalArgumentException("Mật khẩu không được để trống.");
+        }
 
-        if (!passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid password");
+        User user = userRepository.findByEmail(loginDTO.getEmail().trim())
+                .orElseThrow(() -> new IllegalArgumentException("Email chưa được đăng ký trong hệ thống."));
+
+        if (user.getPassword() == null || !passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Mật khẩu không chính xác.");
         }
 
         String token = "Bearer " + jwtUtil.generateToken(user.getEmail());
 
-        Long memberId = null; // default null
-        if ("MEMBER".equals(user.getRole().getRoleName())) {
+        String roleName = user.getRole() != null ? user.getRole().getRoleName() : "MEMBER";
+
+        Long memberId = null;
+        if ("MEMBER".equals(roleName) || "READER".equals(roleName)) {
             try {
                 Member member = memberRepository.findByUserId(user.getId());
                 memberId = (member != null && member.getId() != null) ? member.getId() : user.getId();
@@ -97,8 +106,8 @@ public class UserServiceImpl implements UserService {
 
         return new LoginResponseDTO(
                 token,
-                user.getName(),
-                user.getRole().getRoleName(),
+                user.getName() != null ? user.getName() : user.getUsername(),
+                roleName,
                 memberId
         );
     }
