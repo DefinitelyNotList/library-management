@@ -17,16 +17,9 @@ function BorrowingHistory() {
     try {
       let readerId = localStorage.getItem("memberId") || localStorage.getItem("userId");
       if (!readerId) {
-        const username = localStorage.getItem("username");
-        if (username) {
-          const usersRes = await axiosInstance.get("/users");
-          const me = usersRes.data.find(u =>
-            u.username === username || u.email === username || u.name === username
-          );
-          if (me) { readerId = me.id || me.userId; localStorage.setItem("memberId", readerId); }
-        }
+        setLoading(false);
+        return;
       }
-      if (!readerId) { setLoading(false); return; }
       const res = await axiosInstance.get(`/library/borrows/history?readerId=${readerId}`);
       setHistory(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
@@ -37,16 +30,18 @@ function BorrowingHistory() {
   };
 
   const statusOf = (r) => {
-    const s = r.SlipStatus || r.slipStatus || "";
+    const s = r.status || r.Status || r.slipStatus || r.SlipStatus || "";
     return s.toLowerCase();
   };
 
+  const isBorrowing = (status) => status === "borrowed" || status === "borrowing" || status === "renewed";
+
   const filtered = history.filter((r) => {
     const status = statusOf(r);
-    const title = (r.BookTitle || r.bookTitle || "").toLowerCase();
+    const title = (r.bookTitle || r.BookTitle || r.title || "").toLowerCase();
     const matchFilter =
       filter === "ALL" ||
-      (filter === "Borrowing" && status === "borrowing") ||
+      (filter === "Borrowing" && isBorrowing(status)) ||
       (filter === "Returned" && status === "returned") ||
       (filter === "Overdue" && status === "overdue");
     const matchSearch = !searchTerm || title.includes(searchTerm.toLowerCase());
@@ -55,7 +50,7 @@ function BorrowingHistory() {
 
   const counts = {
     total: history.length,
-    borrowing: history.filter(r => statusOf(r) === "borrowing").length,
+    borrowing: history.filter(r => isBorrowing(statusOf(r))).length,
     returned: history.filter(r => statusOf(r) === "returned").length,
     overdue: history.filter(r => statusOf(r) === "overdue").length,
   };
@@ -73,7 +68,7 @@ function BorrowingHistory() {
   };
 
   const fine = (r) => {
-    const f = Number(r.FineAmount || r.fineAmount || 0);
+    const f = Number(r.fine || r.fineAmount || r.FineAmount || 0);
     return f > 0 ? `💰 ${f.toLocaleString()} VND` : null;
   };
 
@@ -227,29 +222,35 @@ function BorrowingHistory() {
             </div>
           ) : (
             filtered.map((r, i) => {
-              const slipStatus = (r.SlipStatus || r.slipStatus || "").toLowerCase();
-              const badge = statusBadge(slipStatus);
+              const rawStatus = statusOf(r);
+              const badge = statusBadge(rawStatus);
               const fineText = fine(r);
-              const condition = r.BookCondition || r.bookCondition;
+              const condition = r.bookCondition || r.BookCondition;
+              const author = r.AuthorName || r.authorName || r.author;
+              const slipId = r.transactionId || r.transactionID || r.BorrowSlipId || r.borrowSlipId || r.id;
+              const issueDateVal = r.issueDate || r.BorrowDate || r.borrowDate;
               return (
-                <div key={i} className={`card-clean status-${slipStatus}`}>
+                <div key={i} className={`card-clean status-${rawStatus}`}>
                   <div className="d-flex justify-content-between align-items-start">
                     <div className="flex-grow-1">
                       <h6 className="fw-bold mb-1" style={{ color: "#2c3e50", fontSize: "1.05rem" }}>
-                        📖 {r.BookTitle || r.bookTitle || "—"}
+                        📖 {r.bookTitle || r.BookTitle || r.title || "—"}
                       </h6>
+                      {author && (
+                        <div className="small text-muted mb-1">✍️ {author}</div>
+                      )}
                       {(r.ReaderName || r.readerName) && (
                         <small className="text-muted">👤 {r.ReaderName || r.readerName}</small>
                       )}
                       <div className="d-flex flex-wrap gap-2 mt-2">
                         <span className="date-chip">
-                          <strong>Ngày mượn:</strong> {formatDate(r.BorrowDate || r.borrowDate)}
+                          <strong>Ngày mượn:</strong> {formatDate(issueDateVal)}
                         </span>
                         <span className="date-chip">
-                          <strong>Hạn trả:</strong> {formatDate(r.DueDate || r.dueDate)}
+                          <strong>Hạn trả:</strong> {formatDate(r.dueDate || r.DueDate)}
                         </span>
                         <span className="date-chip">
-                          <strong>Đã trả:</strong> {formatDate(r.ReturnDate || r.returnDate)}
+                          <strong>Đã trả:</strong> {formatDate(r.returnDate || r.ReturnDate)}
                         </span>
                         {condition && (
                           <span className="date-chip">
@@ -267,9 +268,11 @@ function BorrowingHistory() {
                       <span className="status-badge" style={{ background: badge.bg }}>
                         {badge.text}
                       </span>
-                      <div className="mt-2">
-                        <small className="text-muted">#{r.BorrowSlipId || r.borrowSlipId}</small>
-                      </div>
+                      {slipId && (
+                        <div className="mt-2">
+                          <small className="text-muted">#{slipId}</small>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

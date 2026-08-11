@@ -22,11 +22,9 @@ function Login() {
       localStorage.setItem("username", username);
       localStorage.setItem("role", role);
 
-      // Store memberId only for MEMBER role
-      if (role === "MEMBER") {
+      // Store memberId for MEMBER or READER role
+      if ((role === "MEMBER" || role === "READER") && memberId) {
         localStorage.setItem("memberId", memberId);
-      } else {
-        localStorage.removeItem("memberId");
       }
 
       setMessage(`Đăng nhập thành công! Chào mừng, ${username}!`);
