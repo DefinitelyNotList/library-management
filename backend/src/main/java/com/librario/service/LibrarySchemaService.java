@@ -371,8 +371,8 @@ public class LibrarySchemaService {
             "  (SELECT COUNT(*) FROM Books) AS TotalBooks, " +
             "  (SELECT COALESCE(SUM(AvailableQuantity), 0) FROM Books) AS availableBooks, " +
             "  (SELECT COALESCE(SUM(AvailableQuantity), 0) FROM Books) AS AvailableBooks, " +
-            "  (SELECT COUNT(*) FROM members WHERE status = 'ACTIVE') AS activeMembers, " +
-            "  (SELECT COUNT(*) FROM members WHERE status = 'ACTIVE') AS TotalReaders, " +
+            "  (SELECT GREATEST((SELECT COUNT(*) FROM Users WHERE UPPER(Role) IN ('MEMBER', 'READER')), (SELECT COUNT(*) FROM members))) AS activeMembers, " +
+            "  (SELECT GREATEST((SELECT COUNT(*) FROM Users WHERE UPPER(Role) IN ('MEMBER', 'READER')), (SELECT COUNT(*) FROM members))) AS TotalReaders, " +
             "  (SELECT COUNT(*) FROM Users WHERE UPPER(Role) = 'LIBRARIAN') AS TotalLibrarians, " +
             "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED') AS currentlyBorrowed, " +
             "  (SELECT COUNT(*) FROM transactions WHERE status = 'BORROWED') AS CurrentlyBorrowing, " +

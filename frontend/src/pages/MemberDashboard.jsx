@@ -855,17 +855,20 @@ function MemberDashboard() {
                               <h6 className="fw-semibold mb-1">
                                 {record.status === "BORROWED" ||
                                 record.status === "OVERDUE"
-                                  ? `Borrowed "${record.book.title}"`
-                                  : `Returned "${record.book.title}"`}
+                                  ? `Borrowed "${record.bookTitle || record.BookTitle || record.book?.title || "—"}"`
+                                  : `Returned "${record.bookTitle || record.BookTitle || record.book?.title || "—"}"`}
                               </h6>
                               <small className="text-muted">
                                 <span className="me-3">
                                   📅{" "}
-                                  {new Date(
-                                    record.borrowDate
-                                  ).toLocaleDateString()}
+                                  {(() => {
+                                    const d = record.borrowDate || record.BorrowDate || record.issueDate;
+                                    return d ? new Date(d).toLocaleDateString("vi-VN") : "—";
+                                  })()}
                                 </span>
-                                <span>👤 {record.issuedBy}</span>
+                                {(record.issuedBy || record.AuthorName || record.authorName) && (
+                                  <span>👤 {record.issuedBy || record.AuthorName || record.authorName}</span>
+                                )}
                               </small>
                             </div>
                             <span
