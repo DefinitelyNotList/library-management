@@ -33,6 +33,7 @@ Thumbs.db
 .env
 .env.local
 .env.*
+!.env.production
 *.env
 application.properties
 application-*.properties
