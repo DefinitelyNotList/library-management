@@ -231,43 +231,131 @@ public class LibrarySchemaService {
     }
 
     // ──────────────────────────────────────────────
-    // Return — uses TransactionRepository (bảng `transactions`)
+    // Return — tries transactions table first, then borrowdetails/borrowslips
     // ──────────────────────────────────────────────
 
     @Transactional
     public Map<String, Object> returnBook(int transactionId, String condition) {
-        Transaction transaction = transactionRepo.findById((long) transactionId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy giao dịch mã " + transactionId));
+        String bookCondition = (condition == null || condition.isBlank()) ? "GOOD" : condition.toUpperCase();
+        LocalDate returnDate = LocalDate.now();
 
-        if (!"BORROWED".equals(transaction.getStatus()) && !"RENEWED".equals(transaction.getStatus())) {
-            throw new IllegalStateException("Giao dịch này không ở trạng thái mượn.");
+        // 1. Try returning from transactions table (JPA)
+        var optTx = transactionRepo.findById((long) transactionId);
+        if (optTx.isPresent()) {
+            Transaction transaction = optTx.get();
+
+            if (!"BORROWED".equals(transaction.getStatus()) && !"RENEWED".equals(transaction.getStatus())) {
+                throw new IllegalStateException("Giao dịch này không ở trạng thái mượn.");
+            }
+
+            transaction.setReturnDate(returnDate);
+            transaction.setStatus("RETURNED");
+            transaction.setBookConditionOnReturn(bookCondition);
+
+            // Calculate overdue fine (5,000 VND/day)
+            int overdueFine = 0;
+            if (returnDate.isAfter(transaction.getDueDate())) {
+                long overdueDays = java.time.temporal.ChronoUnit.DAYS.between(transaction.getDueDate(), returnDate);
+                overdueFine = (int) (overdueDays * 5_000L);
+            }
+            transaction.setFine(overdueFine);
+
+            // Increase available copies
+            Book book = transaction.getBook();
+            book.setAvailableCopies(book.getAvailableCopies() + 1);
+            book.setStatus("Available");
+            bookRepo.save(book);
+
+            transactionRepo.save(transaction);
+
+            return Map.of(
+                    "transactionId", transactionId,
+                    "returnDate", returnDate.toString(),
+                    "bookCondition", bookCondition,
+                    "fine", overdueFine,
+                    "status", "RETURNED"
+            );
         }
 
-        String bookCondition = (condition == null || condition.isBlank()) ? "GOOD" : condition.toUpperCase();
+        // 2. Fallback: try returning from borrowdetails/borrowslips tables (seed data)
+        return returnFromBorrowSlip(transactionId, bookCondition, returnDate);
+    }
 
-        LocalDate returnDate = LocalDate.now();
-        transaction.setReturnDate(returnDate);
-        transaction.setStatus("RETURNED");
-        transaction.setBookConditionOnReturn(bookCondition);
+    /**
+     * Trả sách từ bảng borrowdetails/borrowslips (dữ liệu seed/legacy).
+     * transactionId ở đây thực chất là BorrowDetailId.
+     */
+    @Transactional
+    private Map<String, Object> returnFromBorrowSlip(int borrowDetailId, String bookCondition, LocalDate returnDate) {
+        // Verify the borrow detail exists and is not yet returned
+        List<Map<String, Object>> details = jdbc.queryForList(
+                "SELECT bd.BorrowDetailId, bd.BookId, bd.ReturnDate, bs.BorrowSlipId, bs.DueDate, bs.Status " +
+                "FROM borrowdetails bd " +
+                "JOIN borrowslips bs ON bs.BorrowSlipId = bd.BorrowSlipId " +
+                "WHERE bd.BorrowDetailId = ?",
+                borrowDetailId
+        );
 
-        // Calculate overdue fine (5,000 VND/day)
+        if (details.isEmpty()) {
+            throw new IllegalArgumentException("Không tìm thấy giao dịch mã " + borrowDetailId +
+                    " trong cả bảng transactions và borrowdetails.");
+        }
+
+        Map<String, Object> detail = details.get(0);
+        if (detail.get("ReturnDate") != null) {
+            throw new IllegalStateException("Sách này đã được trả trước đó.");
+        }
+
+        int bookId = ((Number) detail.get("BookId")).intValue();
+        int borrowSlipId = ((Number) detail.get("BorrowSlipId")).intValue();
+
+        // Calculate overdue fine
+        LocalDate dueDate = null;
+        Object dueDateObj = detail.get("DueDate");
+        if (dueDateObj instanceof java.sql.Date) {
+            dueDate = ((java.sql.Date) dueDateObj).toLocalDate();
+        } else if (dueDateObj instanceof LocalDate) {
+            dueDate = (LocalDate) dueDateObj;
+        } else if (dueDateObj != null) {
+            dueDate = LocalDate.parse(dueDateObj.toString());
+        }
+
         int overdueFine = 0;
-        if (returnDate.isAfter(transaction.getDueDate())) {
-            long overdueDays = java.time.temporal.ChronoUnit.DAYS.between(transaction.getDueDate(), returnDate);
+        if (dueDate != null && returnDate.isAfter(dueDate)) {
+            long overdueDays = java.time.temporal.ChronoUnit.DAYS.between(dueDate, returnDate);
             overdueFine = (int) (overdueDays * 5_000L);
         }
-        transaction.setFine(overdueFine);
 
-        // Increase available copies
-        Book book = transaction.getBook();
-        book.setAvailableCopies(book.getAvailableCopies() + 1);
-        book.setStatus("Available");
-        bookRepo.save(book);
+        // Update borrowdetails: set ReturnDate, BookCondition, FineAmount
+        jdbc.update(
+                "UPDATE borrowdetails SET ReturnDate = ?, BookCondition = ?, FineAmount = ? WHERE BorrowDetailId = ?",
+                java.sql.Date.valueOf(returnDate), bookCondition, overdueFine, borrowDetailId
+        );
 
-        transactionRepo.save(transaction);
+        // Check if all details in this borrow slip are now returned
+        int unreturned = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM borrowdetails WHERE BorrowSlipId = ? AND ReturnDate IS NULL",
+                Integer.class, borrowSlipId
+        );
+
+        if (unreturned == 0) {
+            // All books in this slip have been returned → update slip status
+            jdbc.update(
+                    "UPDATE borrowslips SET Status = 'Returned' WHERE BorrowSlipId = ?",
+                    borrowSlipId
+            );
+        }
+
+        // Increase available copies in Books table
+        jdbc.update(
+                "UPDATE Books SET AvailableQuantity = AvailableQuantity + 1, " +
+                "Status = 'Available' WHERE BookId = ?",
+                bookId
+        );
 
         return Map.of(
-                "transactionId", transactionId,
+                "transactionId", borrowDetailId,
+                "borrowSlipId", borrowSlipId,
                 "returnDate", returnDate.toString(),
                 "bookCondition", bookCondition,
                 "fine", overdueFine,
