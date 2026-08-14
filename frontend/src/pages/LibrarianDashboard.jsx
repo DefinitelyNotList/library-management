@@ -141,7 +141,7 @@ function LibrarianBookManagement() {
 
   const handleReturnDb = async () => {
     if (!selectedDetail) return;
-    const detailId = selectedDetail.BorrowDetailId || selectedDetail.borrowDetailId || selectedDetail.id;
+    const detailId = selectedDetail.BorrowDetailId || selectedDetail.borrowDetailId || selectedDetail.transactionId || selectedDetail.id;
     setReturning(true);
     try {
       try {
