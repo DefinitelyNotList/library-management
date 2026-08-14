@@ -64,19 +64,7 @@ CREATE TABLE IF NOT EXISTS Books (
     CONSTRAINT FK_Books_Publishers FOREIGN KEY (PublisherId) REFERENCES Publishers(PublisherId)
 );
 
--- 7. Membership Plans
-CREATE TABLE IF NOT EXISTS membership_plans (
-    id             BIGINT AUTO_INCREMENT PRIMARY KEY,
-    type           VARCHAR(50),
-    fees           DOUBLE,
-    borrowingLimit INT,
-    duration       INT
-);
-INSERT IGNORE INTO membership_plans (id, type, fees, borrowingLimit, duration)
-VALUES (1, 'BASIC', 50000, 3, 30),
-       (2, 'PREMIUM', 100000, 5, 60);
-
--- 8. Members
+-- 7. Members
 CREATE TABLE IF NOT EXISTS members (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id           BIGINT,
@@ -89,7 +77,7 @@ CREATE TABLE IF NOT EXISTS members (
     CONSTRAINT FK_Members_Plans FOREIGN KEY (membership_plan_id) REFERENCES membership_plans(id)
 );
 
--- 9. Transactions (borrow/return)
+-- 8. Transactions (borrow/return)
 CREATE TABLE IF NOT EXISTS transactions (
     id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
     member_id              BIGINT NOT NULL,
@@ -108,7 +96,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     CONSTRAINT FK_Trans_Books   FOREIGN KEY (book_id)   REFERENCES Books(BookId)
 );
 
--- 10. Book Requests
+-- 9. Book Requests
 CREATE TABLE IF NOT EXISTS book_requests (
     id          BIGINT AUTO_INCREMENT PRIMARY KEY,
     member_id   BIGINT NOT NULL,
@@ -119,14 +107,14 @@ CREATE TABLE IF NOT EXISTS book_requests (
     CONSTRAINT FK_BookReq_Books   FOREIGN KEY (book_id)   REFERENCES Books(BookId)
 );
 
--- 11. Token Blacklist (JWT logout)
+-- 10. Token Blacklist (JWT logout)
 CREATE TABLE IF NOT EXISTS token_blacklist (
     id             BIGINT AUTO_INCREMENT PRIMARY KEY,
     token          VARCHAR(1000) NOT NULL UNIQUE,
     blacklistedAt  DATETIME
 );
 
--- 12. OTP (forgot password)
+-- 11. OTP (forgot password)
 CREATE TABLE IF NOT EXISTS otp (
     id         BIGINT AUTO_INCREMENT PRIMARY KEY,
     email      VARCHAR(255),
