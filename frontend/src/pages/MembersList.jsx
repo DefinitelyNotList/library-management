@@ -69,14 +69,14 @@ export default function MembersList() {
   };
 
   const handleDeleteUser = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
+    if (!window.confirm("Are you sure you want to delete this user? All related borrowing data will also be deleted.")) return;
     try {
       await axiosInstance.delete(`/users/${id}`);
       alert("✅ User deleted successfully!");
       load();
     } catch (error) {
       console.error("Failed to delete user:", error);
-      alert("❌ Failed to delete user.");
+      alert("❌ " + (error.response?.data?.message || error.response?.data || "Failed to delete user."));
     }
   };
 

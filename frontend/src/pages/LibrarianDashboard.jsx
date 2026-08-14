@@ -934,7 +934,7 @@ function LibrarianBookManagement() {
                         <tbody>
                           {borrowHistory.map((r, i) => {
                             const status = (r.SlipStatus || r.slipStatus || "").toLowerCase();
-                            const isActive = status === "borrowing" || status === "overdue";
+                            const isActive = status === "borrowing" || status === "borrowed" || status === "overdue" || status === "renewed";
                             const fine = Number(r.FineAmount || r.fineAmount || 0);
                             return (
                               <tr key={i}>
@@ -946,7 +946,8 @@ function LibrarianBookManagement() {
                                 <td>
                                   <span className={`badge rounded-pill px-3 ${
                                     status === "returned" ? "bg-success" :
-                                    status === "overdue" ? "bg-danger" : "bg-warning text-dark"
+                                    status === "overdue" ? "bg-danger" :
+                                    status === "borrowed" || status === "borrowing" || status === "renewed" ? "bg-warning text-dark" : "bg-secondary"
                                   }`}>
                                     {r.SlipStatus || r.slipStatus}
                                   </span>

@@ -43,6 +43,15 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private OtpRepository otpRepository;
 
+    @Autowired
+    private com.librario.repository.TransactionRepository transactionRepository;
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private com.librario.repository.BookRequestRepository bookRequestRepository;
+
     // User Registration
     @Override
     public String registerUser(UserDTO userDTO) {
@@ -311,11 +320,37 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public String deleteUser(Long userId) {
         if (!userRepository.existsById(userId)) {
             return "User not found";
         }
-        userRepository.deleteById(userId);
-        return "User deleted successfully";
+
+        try {
+            // 1. Delete JPA records linked to this user's member record
+            Member member = memberRepository.findByUserId(userId);
+            if (member != null) {
+                // Delete book requests for this member
+                bookRequestRepository.deleteAll(bookRequestRepository.findByMember(member));
+                // Delete transactions for this member
+                transactionRepository.deleteAll(transactionRepository.findByMemberId(member.getId()));
+                // Delete the member record
+                memberRepository.delete(member);
+            }
+
+            // 2. Delete legacy borrowslips/borrowdetails linked to this user's ReaderId
+            try {
+                jdbcTemplate.update("DELETE FROM borrowdetails WHERE BorrowSlipId IN (SELECT BorrowSlipId FROM borrowslips WHERE ReaderId = ?)", userId);
+                jdbcTemplate.update("DELETE FROM borrowslips WHERE ReaderId = ?", userId);
+            } catch (Exception ignored) {
+                // Legacy tables may not exist — ignore
+            }
+
+            // 3. Delete the user
+            userRepository.deleteById(userId);
+            return "User deleted successfully";
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            throw new RuntimeException("Không thể xóa người dùng vì có dữ liệu liên quan. Vui lòng xóa các giao dịch mượn/trả trước.");
+        }
     }
 }
